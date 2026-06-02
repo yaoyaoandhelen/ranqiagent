@@ -2,6 +2,8 @@ const state = {
   activeRiskId: dashboardData.risks[0].id,
   activeStation: null,
   activeAlertIndex: 0,
+  activeAlertPage: 1,
+  alertPageSize: 10,
   trendRange: "today",
   majorRiskFilter: false,
 };
@@ -36,6 +38,21 @@ function riskIdByName(name) {
   return dashboardData.risks.find((risk) => risk.name === name)?.id;
 }
 
+function stationRiskMutedColor(name) {
+  return {
+    第三方施工: "#b98a8f",
+    应力应变: "#b79a7a",
+    阴极保护: "#b5ad7d",
+    泄漏检测: "#9189b3",
+    压力检测: "#7fa7ad",
+  }[name] || "#8fa4b8";
+}
+
+function stationRiskCount(station, riskId = state.activeRiskId) {
+  const segment = riskSegmentForStation(station, riskId);
+  return Math.max(0, Math.round((station.total * (segment?.value || 0)) / 100));
+}
+
 function majorRiskStationsForRisk(riskId) {
   const name = riskTypeName(riskId);
   return dashboardData.stationRiskRatios
@@ -53,6 +70,62 @@ function majorRiskStationsForRisk(riskId) {
 
 function majorRiskTotalForRisk(riskId) {
   return majorRiskStationsForRisk(riskId).reduce((sum, station) => sum + station.count, 0);
+}
+
+function riskListCount(riskId) {
+  if (state.majorRiskFilter && riskId === state.activeRiskId) return majorRiskTotalForRisk(riskId);
+  return dashboardData.stationRiskRatios.reduce((sum, station) => sum + stationRiskCount(station, riskId), 0);
+}
+
+function resetAlertSelection() {
+  state.activeAlertIndex = 0;
+  state.activeAlertPage = 1;
+}
+
+function currentPageSize(pageSize = state.alertPageSize) {
+  return pageSize;
+}
+
+function pagedAlertRows(rows, pageSize = state.alertPageSize) {
+  const size = currentPageSize(pageSize);
+  const pageCount = Math.max(1, Math.ceil(rows.length / size));
+  state.activeAlertPage = Math.min(Math.max(1, state.activeAlertPage), pageCount);
+  if (state.activeAlertIndex >= rows.length) state.activeAlertIndex = 0;
+  const start = (state.activeAlertPage - 1) * size;
+  return {
+    pageRows: rows.slice(start, start + size),
+    start,
+    pageCount,
+  };
+}
+
+function renderTablePager(rows, pageSize = state.alertPageSize) {
+  const size = currentPageSize(pageSize);
+  const pageCount = Math.max(1, Math.ceil(rows.length / size));
+  const start = rows.length ? (state.activeAlertPage - 1) * size + 1 : 0;
+  const end = Math.min(rows.length, state.activeAlertPage * size);
+  return `
+    <div class="table-pager" aria-label="实时告警分页">
+      <span>${start}-${end} / ${rows.length}条</span>
+      <button type="button" data-page-action="prev" ${state.activeAlertPage <= 1 ? "disabled" : ""}>上一页</button>
+      <em>${state.activeAlertPage} / ${pageCount}</em>
+      <button type="button" data-page-action="next" ${state.activeAlertPage >= pageCount ? "disabled" : ""}>下一页</button>
+    </div>
+  `;
+}
+
+function bindTablePager(rows, pageSize = state.alertPageSize) {
+  document.querySelectorAll(".table-pager button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const size = currentPageSize(pageSize);
+      const pageCount = Math.max(1, Math.ceil(rows.length / size));
+      state.activeAlertPage += button.dataset.pageAction === "next" ? 1 : -1;
+      state.activeAlertPage = Math.min(Math.max(1, state.activeAlertPage), pageCount);
+      state.activeAlertIndex = (state.activeAlertPage - 1) * size;
+      renderRealtimeAlerts();
+      renderSelectedAnalysis();
+    });
+  });
 }
 
 function renderHeroStats() {
@@ -94,7 +167,7 @@ function renderRatioPanels() {
   const legendItems = dashboardData.typeRatios
     .map(
       (item) => `
-        <span><i style="background:${item.color}"></i>${item.name}</span>
+        <span><i style="background:${stationRiskMutedColor(item.name)}"></i>${item.name}</span>
       `,
     )
     .join("");
@@ -135,8 +208,9 @@ function renderRatioPanels() {
                   const count = Math.max(0, Math.round((station.total * (segment?.value || 0)) / 100));
                   const opacity = 0.24 + (count / maxRiskCount) * 0.68;
                   const x = left + colIndex * cellWidth;
+                  const cellColor = stationRiskMutedColor(riskType.name);
                   return `
-                    <rect x="${x}" y="${y}" width="${cellWidth - gap}" height="${cellHeight}" rx="7" fill="${riskType.color}" opacity="${opacity}" class="station-risk-cell">
+                    <rect x="${x}" y="${y}" width="${cellWidth - gap}" height="${cellHeight}" rx="7" fill="${cellColor}" opacity="${opacity}" class="station-risk-cell">
                       <title>${station.station} - ${riskType.name}：${count}件</title>
                     </rect>
                     <text x="${x + (cellWidth - gap) / 2}" y="${y + 18}" class="station-risk-count">${count}</text>
@@ -190,7 +264,7 @@ function renderRatioPanels() {
     card.addEventListener("click", () => {
       state.activeRiskId = card.dataset.riskId;
       state.activeStation = null;
-      state.activeAlertIndex = 0;
+      resetAlertSelection();
       state.majorRiskFilter = true;
       renderAll();
     });
@@ -201,9 +275,7 @@ function renderRiskList() {
   $("#riskList").innerHTML = dashboardData.risks
     .map((risk) => {
       const level = getLevel(risk.score);
-      const displayValue = state.majorRiskFilter && risk.id === state.activeRiskId
-        ? currentAlertRows().length
-        : risk.score;
+      const displayValue = riskListCount(risk.id);
       return `
         <button class="risk-card ${risk.id === state.activeRiskId ? "active" : ""}" data-risk-id="${risk.id}">
           <span class="risk-icon">${risk.icon}</span>
@@ -223,7 +295,7 @@ function renderRiskList() {
     button.addEventListener("click", () => {
       state.activeRiskId = button.dataset.riskId;
       state.activeStation = null;
-      state.activeAlertIndex = 0;
+      resetAlertSelection();
       state.majorRiskFilter = false;
       renderAll();
     });
@@ -235,16 +307,16 @@ function renderStationControl() {
   $("#stationControlList").innerHTML = dashboardData.stationRiskRatios
     .map((station) => {
       const activeSegment = riskSegmentForStation(station);
-      const highCount = activeSegment?.value >= 26 ? Math.max(1, Math.round((station.total * activeSegment.value) / 100)) : 0;
+      const majorCount = activeSegment?.value >= 36 ? stationRiskCount(station) : 0;
       const riskCount = state.majorRiskFilter
-        ? highCount
-        : Math.max(1, Math.round((station.total * (activeSegment?.value || 0)) / 100));
+        ? majorCount
+        : stationRiskCount(station);
       const isActive = station.station === state.activeStation;
       return `
         <button class="station-control-card ${isActive ? "active" : ""}" type="button" data-station="${station.station}">
           <span>
             <strong>${station.station}</strong>
-            <small>${state.majorRiskFilter ? "高风险统计" : riskTypeName()} ${activeSegment?.value || 0}%</small>
+            <small>${state.majorRiskFilter ? "重大风险统计" : riskTypeName()} ${activeSegment?.value || 0}%</small>
           </span>
           <em>${riskCount}件</em>
         </button>
@@ -254,14 +326,14 @@ function renderStationControl() {
 
   $("#clearStation").onclick = () => {
     state.activeStation = null;
-    state.activeAlertIndex = 0;
+    resetAlertSelection();
     renderAll();
   };
 
   document.querySelectorAll(".station-control-card").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeStation = state.activeStation === button.dataset.station ? null : button.dataset.station;
-      state.activeAlertIndex = 0;
+      resetAlertSelection();
       state.majorRiskFilter = false;
       renderAll();
     });
@@ -277,13 +349,7 @@ function currentAlertRows() {
   const station = activeStation();
   if (station) return buildStationRows(station, state.activeRiskId);
   if (state.majorRiskFilter) return buildMajorControlRows(state.activeRiskId);
-  let rows;
-  if (state.activeRiskId === "construction") rows = dashboardData.constructionVideos;
-  else if (state.activeRiskId === "strain") rows = dashboardData.strainRows;
-  else if (state.activeRiskId === "cathodic") rows = dashboardData.cathodicRows.map(withCathodicLevel);
-  else if (state.activeRiskId === "leak") rows = dashboardData.leakRows;
-  else rows = dashboardData.pressureRiskRows;
-  return rows;
+  return dashboardData.stationRiskRatios.flatMap((item) => buildStationRows(item, state.activeRiskId));
 }
 
 function stationRiskLevel(percent) {
@@ -300,6 +366,18 @@ function stationFrequency(percent) {
     high: Math.max(0, Math.round(percent / 28)),
     critical: percent >= 36 ? 1 : 0,
   };
+}
+
+function stationFrequencyByCount(count, level) {
+  const frequency = { low: 0, medium: 0, high: 0, critical: 0 };
+  const key = {
+    低风险: "low",
+    中风险: "medium",
+    高风险: "high",
+    重大风险: "critical",
+  }[level] || "low";
+  frequency[key] = count;
+  return frequency;
 }
 
 function cathodicLevelByOffPotential(value, sustainedHours = 2) {
@@ -337,7 +415,7 @@ function buildMajorControlRows(riskId) {
         station: stationInfo.name,
         region: "重庆/垫江/鼎发燃气",
         level: "重大风险",
-        frequency: { low: 0, medium: 0, high: 0, critical: total },
+        frequency: { low: 0, medium: 0, high: 0, critical: stationInfo.count },
         cause: `${stationInfo.name}${risk.name}重大风险累计${stationInfo.count}件，当前纳入重大风险管控筛选，需按站点和风险类型集中核查。`,
         impact: `该风险类型共触发${total}条重大告警，若未及时处置，可能影响站点安全裕度、管段运行稳定和应急资源调度。`,
         advice: `优先处理${stationInfo.name}相关告警，核查实时监测值、现场设备状态和历史处置记录，并将${total}条重大风险纳入闭环工单。`,
@@ -403,8 +481,9 @@ function buildMajorControlRows(riskId) {
 function buildStationRows(station, riskId) {
   const risk = dashboardData.risks.find((item) => item.id === riskId);
   const segment = riskSegmentForStation(station, riskId) || { value: 18 };
+  const count = stationRiskCount(station, riskId);
   const level = stationRiskLevel(segment.value);
-  const frequency = stationFrequency(segment.value);
+  const frequency = stationFrequencyByCount(count, level);
   const baseCode = station.station.replace(/[（）()]/g, "").slice(0, 2).toUpperCase();
   const common = {
     region: "重庆/垫江/鼎发燃气",
@@ -416,26 +495,28 @@ function buildStationRows(station, riskId) {
   };
 
   if (riskId === "construction") {
-    return [0, 1, 2, 3, 4, 5].map((item) => ({
+    return Array.from({ length: count }, (_, item) => ({
       ...common,
       title: `${station.station} 周边施工视频预警 ${item + 1}`,
       time: `2026-05-30 17:${String(42 - item * 3).padStart(2, "0")}:1${item}`,
       camera: `${station.station} ${String(item + 1).padStart(2, "0")}#枪机`,
       distance: item === 0 ? "10m红区" : item <= 2 ? "26m管控区" : "45m关注区",
       beforeAfter: "前后30s视频",
-      thumbnail: dashboardData.constructionVideos[item]?.thumbnail || dashboardData.constructionVideos[0].thumbnail,
+      thumbnail: dashboardData.constructionVideos[item % dashboardData.constructionVideos.length]?.thumbnail || dashboardData.constructionVideos[0].thumbnail,
     }));
   }
 
   if (riskId === "cathodic") {
     const offPotentials = [-0.66, -0.73, -0.79, -0.83];
-    return [0, 1, 2, 3].map((item) => ({
+    return Array.from({ length: count }, (_, item) => {
+      const offPotential = offPotentials[item % offPotentials.length];
+      return {
       ...common,
       time: `2026-05-30 17:${42 - item}:16`,
       station: `${station.station} CP-${String(17 + item).padStart(3, "0")}`,
-      offPotential: offPotentials[item].toFixed(2),
+      offPotential: offPotential.toFixed(2),
       sustainedHours: 2,
-      level: cathodicLevelByOffPotential(offPotentials[item], 2),
+      level: cathodicLevelByOffPotential(offPotential, 2),
       dcDensity: (10 + segment.value / 2 - item * 0.9).toFixed(1),
       acDensity: (2.1 + segment.value / 20 - item * 0.2).toFixed(1),
       acVoltage: (4.6 + segment.value / 10 - item * 0.3).toFixed(1),
@@ -444,7 +525,8 @@ function buildStationRows(station, riskId) {
       anodeCurrent: String(34 + item * 3),
       signal: `${92 - item * 3}%`,
       battery: (3.62 - item * 0.03).toFixed(2),
-    }));
+      };
+    });
   }
 
   const fieldByRisk = {
@@ -453,14 +535,14 @@ function buildStationRows(station, riskId) {
     pressure: { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["1.56", "1.51", "1.47", "1.42"] },
   }[riskId] || { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["1.50", "1.46", "1.43", "1.39"] };
 
-  return [0, 1, 2, 3].map((item) => ({
+  return Array.from({ length: count }, (_, item) => ({
     ...common,
     time: `2026-05-30 17:${42 - item}:1${6 - item}`,
     station: station.station,
     code: `DF-${fieldByRisk.code}-${baseCode}${String(item + 1).padStart(3, "0")}`,
     type: fieldByRisk.type,
-    pressure: riskId === "leak" ? fieldByRisk.pressureValues[item] : undefined,
-    [fieldByRisk.key]: fieldByRisk.values[item],
+    pressure: riskId === "leak" ? fieldByRisk.pressureValues[item % fieldByRisk.pressureValues.length] : undefined,
+    [fieldByRisk.key]: fieldByRisk.values[item % fieldByRisk.values.length],
   }));
 }
 
@@ -520,11 +602,13 @@ function renderRealtimeAlerts() {
     pressure: "压力MPa",
   }[state.activeRiskId] || "监测值";
   const leakExtraHeader = state.activeRiskId === "leak" ? "<th>压力</th>" : "";
+  const { pageRows, start } = pagedAlertRows(rows);
   $("#realtimeContent").innerHTML = `
     <div class="risk-table-wrap">
       <table class="risk-table">
         <thead>
           <tr>
+            <th class="seq-col">序号</th>
             <th>时间</th>
             <th>站点名称</th>
             <th>区域</th>
@@ -537,12 +621,14 @@ function renderRealtimeAlerts() {
         <tbody id="alertTableBody"></tbody>
       </table>
     </div>
+    ${renderTablePager(rows)}
   `;
 
-  $("#alertTableBody").innerHTML = rows
+  $("#alertTableBody").innerHTML = pageRows
     .map(
       (row, index) => `
-        <tr class="${index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${index}">
+        <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
+          <td class="seq-col">${start + index + 1}</td>
           <td>${row.time}</td>
           <td>${row.station}</td>
           <td>${row.region}</td>
@@ -562,6 +648,7 @@ function renderRealtimeAlerts() {
       renderSelectedAnalysis();
     });
   });
+  bindTablePager(rows);
 }
 
 function renderStrainTable() {
@@ -570,11 +657,13 @@ function renderStrainTable() {
     renderEmptyRealtime();
     return;
   }
+  const { pageRows, start } = pagedAlertRows(rows);
   $("#realtimeContent").innerHTML = `
     <div class="risk-table-wrap">
       <table class="risk-table">
         <thead>
           <tr>
+            <th class="seq-col">序号</th>
             <th>时间</th>
             <th>站点名称</th>
             <th>区域</th>
@@ -583,10 +672,11 @@ function renderStrainTable() {
           </tr>
         </thead>
         <tbody id="alertTableBody">
-          ${rows
+          ${pageRows
             .map(
               (row, index) => `
-                <tr class="${index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${index}">
+                <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
+                  <td class="seq-col">${start + index + 1}</td>
                   <td>${row.time}</td>
                   <td>${row.station}</td>
                   <td>${row.region}</td>
@@ -599,6 +689,7 @@ function renderStrainTable() {
         </tbody>
       </table>
     </div>
+    ${renderTablePager(rows)}
   `;
 
   document.querySelectorAll("#alertTableBody tr").forEach((row) => {
@@ -608,6 +699,7 @@ function renderStrainTable() {
       renderSelectedAnalysis();
     });
   });
+  bindTablePager(rows);
 }
 
 function renderCathodicTable() {
@@ -616,11 +708,13 @@ function renderCathodicTable() {
     renderEmptyRealtime();
     return;
   }
+  const { pageRows, start } = pagedAlertRows(rows);
   $("#realtimeContent").innerHTML = `
     <div class="risk-table-wrap">
       <table class="risk-table cathodic-table">
         <thead>
           <tr>
+            <th class="seq-col">序号</th>
             <th>时间</th>
             <th>站点名称</th>
             <th>断电电位(V)</th>
@@ -635,10 +729,11 @@ function renderCathodicTable() {
           </tr>
         </thead>
         <tbody id="alertTableBody">
-          ${rows
+          ${pageRows
             .map(
               (row, index) => `
-                <tr class="${index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${index}">
+                <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
+                  <td class="seq-col">${start + index + 1}</td>
                   <td>${row.time}</td>
                   <td>${row.station}</td>
                   <td><strong class="${pressureClass(row.level)}">${row.offPotential}</strong></td>
@@ -657,6 +752,7 @@ function renderCathodicTable() {
         </tbody>
       </table>
     </div>
+    ${renderTablePager(rows)}
   `;
 
   document.querySelectorAll("#alertTableBody tr").forEach((row) => {
@@ -666,6 +762,7 @@ function renderCathodicTable() {
       renderSelectedAnalysis();
     });
   });
+  bindTablePager(rows);
 }
 
 function renderConstructionVideos() {
@@ -674,12 +771,14 @@ function renderConstructionVideos() {
     renderEmptyRealtime();
     return;
   }
+  const constructionPageSize = 6;
+  const { pageRows, start } = pagedAlertRows(rows, constructionPageSize);
   $("#realtimeContent").innerHTML = `
     <div class="video-grid">
-      ${rows
+      ${pageRows
         .map(
           (item, index) => `
-            <button class="video-card ${index === state.activeAlertIndex ? "active" : ""}" type="button" data-alert-index="${index}" title="点击查看该风险前后总共30s的视频">
+            <button class="video-card ${start + index === state.activeAlertIndex ? "active" : ""}" type="button" data-alert-index="${start + index}" title="点击查看该风险前后总共30s的视频">
               <span class="video-thumb" style="background:${item.thumbnail}">
                 <i></i>
               </span>
@@ -691,6 +790,7 @@ function renderConstructionVideos() {
         )
         .join("")}
     </div>
+    ${renderTablePager(rows, constructionPageSize)}
   `;
 
   document.querySelectorAll(".video-card").forEach((card) => {
@@ -700,6 +800,7 @@ function renderConstructionVideos() {
       renderSelectedAnalysis();
     });
   });
+  bindTablePager(rows, constructionPageSize);
 }
 
 function renderSelectedAnalysis() {

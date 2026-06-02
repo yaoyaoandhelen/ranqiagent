@@ -768,11 +768,20 @@ small {
 }
 
 .map-panel {
-  min-height: 620px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 620px;
+  overflow: hidden;
+}
+
+#realtimeContent {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 44px;
+  min-height: 0;
 }
 
 .risk-table-wrap {
-  min-height: 520px;
+  min-height: 0;
   overflow: auto;
   border: 1px solid rgba(34, 211, 238, 0.18);
   background:
@@ -796,6 +805,12 @@ small {
   padding: 14px 12px;
   text-align: left;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.risk-table .seq-col {
+  width: 58px;
+  color: #7dd3fc;
+  text-align: center;
 }
 
 .risk-table th {
@@ -849,10 +864,46 @@ small {
   background: rgba(14, 116, 144, 0.28);
 }
 
+.table-pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 10px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.table-pager span,
+.table-pager em {
+  color: #93a4b8;
+  font-style: normal;
+}
+
+.table-pager button {
+  min-width: 64px;
+  min-height: 30px;
+  padding: 5px 10px;
+  color: #dbeafe;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  background: rgba(8, 18, 32, 0.72);
+}
+
+.table-pager button:not(:disabled):hover {
+  border-color: rgba(34, 211, 238, 0.62);
+  background: rgba(14, 116, 144, 0.28);
+}
+
+.table-pager button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .empty-state {
   display: grid;
   place-items: center;
-  min-height: 520px;
+  min-height: 0;
   padding: 40px;
   color: #cbd5e1;
   text-align: center;
@@ -964,7 +1015,8 @@ small {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
-  min-height: 520px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .video-card {
