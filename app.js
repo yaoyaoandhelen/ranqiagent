@@ -38,6 +38,16 @@ function riskIdByName(name) {
   return dashboardData.risks.find((risk) => risk.name === name)?.id;
 }
 
+function riskDescription(riskId) {
+  return {
+    construction: "外部施工靠近管线红线形成的破坏风险",
+    strain: "管道受力、沉降或形变异常风险",
+    cathodic: "阴保电位异常导致腐蚀防护不足风险",
+    leak: "阀井或管段气体浓度异常泄漏风险",
+    pressure: "运行压力超限或波动异常风险",
+  }[riskId] || "当前风险类型的监测告警";
+}
+
 function stationRiskMutedColor(name) {
   return {
     第三方施工: "#b98a8f",
@@ -281,7 +291,7 @@ function renderRiskList() {
           <span class="risk-icon">${risk.icon}</span>
           <span class="risk-main">
             <strong>${risk.name}</strong>
-            <small>${risk.location}</small>
+            <small>${riskDescription(risk.id)}</small>
           </span>
           <span class="risk-score ${level.className}">
             ${displayValue}
