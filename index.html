@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>垫江天然气管道安全管控智能体</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">综合场景驾驶舱 / 子页面</p>
+          <h1>垫江天然气管道安全管控智能体</h1>
+        </div>
+        <div class="top-actions">
+          <span class="status-dot"></span>
+          <span id="updatedAt">数据同步中</span>
+        </div>
+      </header>
+
+      <section class="hero-stats" id="heroStats" aria-label="全县风险态势"></section>
+
+      <section class="ratio-grid" aria-label="风险统计分析">
+        <section class="panel ratio-panel">
+          <div class="ratio-head">
+            <h2>站点风险数量</h2>
+            <p>统计各风险类型在各站点的告警数量，快速定位高频站点与高频风险</p>
+          </div>
+          <div class="station-risk-chart" id="stationRiskChart"></div>
+        </section>
+
+        <section class="panel ratio-panel">
+          <div class="ratio-head">
+            <h2>重大风险管控</h2>
+            <p>只统计重大风险站点预警，按风险类型聚合并提示相关人员及时处置</p>
+          </div>
+          <div class="type-bars" id="typeRatioBars"></div>
+        </section>
+      </section>
+
+      <main class="alert-workbench">
+        <aside class="panel left-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Risk Type</p>
+              <h2>风险类型</h2>
+            </div>
+            <span class="chip">5种</span>
+          </div>
+          <div class="risk-list" id="riskList"></div>
+          <div class="station-control-block">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">Station Control</p>
+                <h2>站点风险管控</h2>
+              </div>
+              <button class="clear-station" id="clearStation" type="button">全部</button>
+            </div>
+            <div class="station-control-list" id="stationControlList"></div>
+          </div>
+        </aside>
+
+        <section class="alert-main">
+          <section class="panel map-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Realtime Alerts</p>
+                <h2>实时告警</h2>
+              </div>
+              <div class="risk-level-legend" id="riskLevelLegend" aria-label="风险等级颜色说明"></div>
+              <span class="chip">压力 MPa</span>
+            </div>
+
+            <div id="realtimeContent"></div>
+          </section>
+
+          <section class="panel analysis-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Risk Analysis Result</p>
+                <h2>风险分析结果</h2>
+              </div>
+              <span class="chip" id="selectedAlertLabel">已选中</span>
+            </div>
+            <div class="selected-analysis" id="selectedAnalysis"></div>
+          </section>
+        </section>
+      </main>
+
+      <section class="bottom-grid">
+        <section class="panel trend-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Risk Trend</p>
+              <h2>站点风险趋势图</h2>
+            </div>
+            <div class="trend-actions">
+              <select id="trendRange" aria-label="选择时间范围">
+                <option value="today">今日</option>
+                <option value="week">近7天</option>
+                <option value="month">近30天</option>
+              </select>
+              <span class="chip" id="trendLabel">今日</span>
+            </div>
+          </div>
+          <canvas id="trendCanvas" width="1200" height="320" aria-label="各站点各风险类型趋势图"></canvas>
+        </section>
+      </section>
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
