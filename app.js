@@ -87,6 +87,18 @@ function riskListCount(riskId) {
   return dashboardData.stationRiskRatios.reduce((sum, station) => sum + stationRiskCount(station, riskId), 0);
 }
 
+function stationDisplayCount(station, riskId = state.activeRiskId) {
+  const segment = riskSegmentForStation(station, riskId);
+  if (state.majorRiskFilter) return segment?.value >= 36 ? stationRiskCount(station, riskId) : 0;
+  return stationRiskCount(station, riskId);
+}
+
+function stationRiskShare(station, riskId = state.activeRiskId) {
+  const total = dashboardData.stationRiskRatios.reduce((sum, item) => sum + stationDisplayCount(item, riskId), 0);
+  if (!total) return 0;
+  return Math.round((stationDisplayCount(station, riskId) / total) * 100);
+}
+
 function resetAlertSelection() {
   state.activeAlertIndex = 0;
   state.activeAlertPage = 1;
@@ -316,17 +328,14 @@ function renderStationControl() {
   $("#clearStation").classList.toggle("active", !state.activeStation);
   $("#stationControlList").innerHTML = dashboardData.stationRiskRatios
     .map((station) => {
-      const activeSegment = riskSegmentForStation(station);
-      const majorCount = activeSegment?.value >= 36 ? stationRiskCount(station) : 0;
-      const riskCount = state.majorRiskFilter
-        ? majorCount
-        : stationRiskCount(station);
+      const riskCount = stationDisplayCount(station);
+      const share = stationRiskShare(station);
       const isActive = station.station === state.activeStation;
       return `
         <button class="station-control-card ${isActive ? "active" : ""}" type="button" data-station="${station.station}">
           <span>
             <strong>${station.station}</strong>
-            <small>${state.majorRiskFilter ? "重大风险统计" : riskTypeName()} ${activeSegment?.value || 0}%</small>
+            <small>${state.majorRiskFilter ? "重大风险占比" : `${riskTypeName()}占比`} ${share}%</small>
           </span>
           <em>${riskCount}件</em>
         </button>
