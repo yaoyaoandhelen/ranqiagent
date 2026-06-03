@@ -150,6 +150,28 @@ function bindTablePager(rows, pageSize = state.alertPageSize) {
   });
 }
 
+function openVideoModal(item) {
+  if (!item.videoUrl) return;
+  const modal = $("#videoModal");
+  const player = $("#videoModalPlayer");
+  $("#videoModalTitle").textContent = item.title;
+  player.src = item.videoUrl;
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  player.play().catch(() => {});
+}
+
+function closeVideoModal() {
+  const modal = $("#videoModal");
+  const player = $("#videoModalPlayer");
+  if (!modal || !player) return;
+  player.pause();
+  player.removeAttribute("src");
+  player.load();
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+}
+
 function renderHeroStats() {
   $("#updatedAt").textContent = `更新时间 ${dashboardData.updatedAt}`;
   $("#heroStats").innerHTML = dashboardData.stats
@@ -514,15 +536,24 @@ function buildStationRows(station, riskId) {
   };
 
   if (riskId === "construction") {
-    return Array.from({ length: count }, (_, item) => ({
-      ...common,
-      title: `${station.station} 周边施工视频预警 ${item + 1}`,
-      time: `2026-05-30 17:${String(42 - item * 3).padStart(2, "0")}:1${item}`,
-      camera: `${station.station} ${String(item + 1).padStart(2, "0")}#枪机`,
-      distance: item === 0 ? "10m红区" : item <= 2 ? "26m管控区" : "45m关注区",
-      beforeAfter: "前后30s视频",
-      thumbnail: dashboardData.constructionVideos[item % dashboardData.constructionVideos.length]?.thumbnail || dashboardData.constructionVideos[0].thumbnail,
-    }));
+    return Array.from({ length: count }, (_, item) => {
+      const isDemoVideo = station.station === "凉风垭储配站" && item === 0;
+      return {
+        ...common,
+        title: isDemoVideo ? "凉风垭储配站 周边施工低风险视频预警" : `${station.station} 周边施工视频预警 ${item + 1}`,
+        time: `2026-05-30 17:${String(42 - item * 3).padStart(2, "0")}:1${item}`,
+        camera: `${station.station} ${String(item + 1).padStart(2, "0")}#枪机`,
+        distance: isDemoVideo ? "62m低风险区" : item === 0 ? "10m红区" : item <= 2 ? "26m管控区" : "45m关注区",
+        level: isDemoVideo ? "低风险" : common.level,
+        frequency: isDemoVideo ? { low: count, medium: 0, high: 0, critical: 0 } : common.frequency,
+        cause: isDemoVideo ? "视频识别到施工人员或设备处于低风险关注区，暂未进入管道红线或管控区。" : common.cause,
+        impact: isDemoVideo ? "当前对管道安全影响较低，但需持续关注后续是否出现机械靠近或开挖行为。" : common.impact,
+        advice: isDemoVideo ? "点击查看视频大图，保留视频证据并持续跟踪该点位施工动态。" : common.advice,
+        beforeAfter: "前后30s视频",
+        thumbnail: isDemoVideo ? "" : dashboardData.constructionVideos[item % dashboardData.constructionVideos.length]?.thumbnail || dashboardData.constructionVideos[0].thumbnail,
+        videoUrl: isDemoVideo ? "./assets/videos/third-party-construction-low-risk.mp4" : "",
+      };
+    });
   }
 
   if (riskId === "cathodic") {
@@ -798,7 +829,8 @@ function renderConstructionVideos() {
         .map(
           (item, index) => `
             <button class="video-card ${start + index === state.activeAlertIndex ? "active" : ""}" type="button" data-alert-index="${start + index}" title="点击查看该风险前后总共30s的视频">
-              <span class="video-thumb" style="background:${item.thumbnail}">
+              <span class="video-thumb ${item.videoUrl ? "has-video" : ""}" style="background:${item.thumbnail}">
+                ${item.videoUrl ? `<video src="${item.videoUrl}" muted preload="metadata"></video>` : ""}
                 <i></i>
               </span>
               <strong>${item.title}</strong>
@@ -815,8 +847,10 @@ function renderConstructionVideos() {
   document.querySelectorAll(".video-card").forEach((card) => {
     card.addEventListener("click", () => {
       state.activeAlertIndex = Number(card.dataset.alertIndex);
+      const selectedItem = currentAlertRows()[state.activeAlertIndex];
       renderConstructionVideos();
       renderSelectedAnalysis();
+      openVideoModal(selectedItem);
     });
   });
   bindTablePager(rows, constructionPageSize);
@@ -1003,6 +1037,14 @@ function renderAll() {
 }
 
 renderAll();
+
+document.querySelectorAll("[data-video-close]").forEach((item) => {
+  item.addEventListener("click", closeVideoModal);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeVideoModal();
+});
 
 $("#trendRange").addEventListener("change", (event) => {
   state.trendRange = event.target.value;
