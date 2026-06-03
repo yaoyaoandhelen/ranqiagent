@@ -99,6 +99,11 @@ function realConstructionAlertRows() {
       cause: "视频识别到施工人员或设备处于低风险关注区，暂未进入管道红线或管控区。",
       impact: "当前对管道安全影响较低，但需持续关注后续是否出现机械靠近或开挖行为。",
       advice: "点击查看视频大图，保留视频证据并持续跟踪该点位施工动态。",
+      metrics: [
+        { label: "施工活动", value: "人员通行", state: "低风险关注" },
+        { label: "距管道中心线", value: "62 m", state: "低风险区" },
+        { label: "持续时间", value: "短时出现", state: "持续观察" },
+      ],
       thumbnail: "",
       videoUrl: "./assets/videos/third-party-construction-low-risk.mp4",
     },
@@ -115,6 +120,11 @@ function realConstructionAlertRows() {
       cause: "视频识别到施工活动处于低风险关注范围，暂未发现机械越界或开挖动作。",
       impact: "当前风险较低，但施工活动可能随时间向管控区靠近，需要保持视频跟踪。",
       advice: "点击查看视频大图，持续抽帧观察并在出现机械靠近时自动升级预警。",
+      metrics: [
+        { label: "施工活动", value: "场地整理", state: "低风险关注" },
+        { label: "距管道中心线", value: "58 m", state: "低风险区" },
+        { label: "持续时间", value: "短时出现", state: "持续观察" },
+      ],
       thumbnail: "",
       videoUrl: "./assets/videos/third-party-construction-low-risk-2.mp4",
     },
@@ -937,7 +947,7 @@ function renderSelectedAnalysis() {
     return;
   }
   const frequencyText = `低风险 ${alert.frequency.low} 次，中风险 ${alert.frequency.medium} 次，高风险 ${alert.frequency.high} 次，重大风险 ${alert.frequency.critical} 次。`;
-  const metricText = risk.metrics
+  const metricText = (alert.metrics || risk.metrics)
     .map((metric) => `${metric.label}：${metric.value}（${metric.state}）`)
     .join("；");
 
