@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>垫江天然气管道安全管控智能体</title>
-    <link rel="stylesheet" href="./styles.css?v=20260603b" />
+    <link rel="stylesheet" href="./styles.css?v=20260603d" />
   </head>
   <body>
     <div class="shell">
@@ -116,11 +116,16 @@
           <strong id="videoModalTitle">施工视频预警</strong>
           <button type="button" data-video-close>关闭</button>
         </div>
-        <video id="videoModalPlayer" controls preload="metadata"></video>
+        <video id="videoModalPlayer" controls preload="auto" playsinline></video>
       </div>
     </div>
 
-    <script src="./data.js?v=20260603b"></script>
-    <script src="./app.js?v=20260603b"></script>
+    <div class="video-preload" aria-hidden="true">
+      <video src="./assets/videos/third-party-construction-low-risk.mp4" preload="auto" muted playsinline></video>
+      <video src="./assets/videos/third-party-construction-low-risk-2.mp4" preload="auto" muted playsinline></video>
+    </div>
+
+    <script src="./data.js?v=20260603d"></script>
+    <script src="./app.js?v=20260603d"></script>
   </body>
 </html>

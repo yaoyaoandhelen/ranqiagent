@@ -9,6 +9,8 @@ const state = {
 };
 
 const $ = (selector) => document.querySelector(selector);
+const videoBlobCache = new Map();
+let videoCacheStarted = false;
 
 function getLevel(score) {
   if (score >= 75) return { name: "重大", className: "critical" };
@@ -89,7 +91,7 @@ function realConstructionAlertRows() {
       time: "2026-05-30 17:42:16",
       station: "凉风垭储配站",
       region: "重庆/垫江/鼎发燃气",
-      camera: "凉风垭储配站 01#枪机",
+      camera: "凉风垭储配站 01#监控",
       distance: "62m低风险区",
       level: "低风险",
       beforeAfter: "前后30s视频",
@@ -105,7 +107,7 @@ function realConstructionAlertRows() {
       time: "2026-05-30 17:39:08",
       station: "垫江工业园区配气站",
       region: "重庆/垫江/鼎发燃气",
-      camera: "垫江工业园区配气站 02#枪机",
+      camera: "垫江工业园区配气站 02#监控",
       distance: "58m低风险区",
       level: "低风险",
       beforeAfter: "前后30s视频",
@@ -194,7 +196,8 @@ function openVideoModal(item) {
   const modal = $("#videoModal");
   const player = $("#videoModalPlayer");
   $("#videoModalTitle").textContent = item.title;
-  player.src = item.videoUrl;
+  player.src = videoBlobCache.get(item.videoUrl) || item.videoUrl;
+  player.load();
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
   player.play().catch(() => {});
@@ -209,6 +212,21 @@ function closeVideoModal() {
   player.load();
   modal.classList.remove("open");
   modal.setAttribute("aria-hidden", "true");
+}
+
+function warmVideoCache() {
+  if (videoCacheStarted) return;
+  videoCacheStarted = true;
+  realConstructionAlertRows()
+    .filter((item) => item.videoUrl)
+    .forEach((item) => {
+      fetch(item.videoUrl)
+        .then((response) => response.blob())
+        .then((blob) => {
+          videoBlobCache.set(item.videoUrl, URL.createObjectURL(blob));
+        })
+        .catch(() => {});
+    });
 }
 
 function renderHeroStats() {
@@ -873,7 +891,7 @@ function renderConstructionVideos() {
           (item, index) => `
             <button class="video-card ${start + index === state.activeAlertIndex ? "active" : ""}" type="button" data-alert-index="${start + index}" title="点击查看该风险前后总共30s的视频">
               <span class="video-thumb ${item.videoUrl ? "has-video" : ""}" style="background:${item.thumbnail}">
-                ${item.videoUrl ? `<video src="${item.videoUrl}" muted preload="metadata"></video>` : ""}
+                ${item.videoUrl ? `<video src="${item.videoUrl}" muted preload="auto" playsinline></video>` : ""}
                 <i></i>
               </span>
               <strong>${item.title}</strong>
@@ -1080,6 +1098,7 @@ function renderAll() {
 }
 
 renderAll();
+warmVideoCache();
 
 document.querySelectorAll("[data-video-close]").forEach((item) => {
   item.addEventListener("click", closeVideoModal);

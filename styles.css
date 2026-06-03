@@ -1014,6 +1014,9 @@ small {
 .video-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  align-content: start;
+  align-items: start;
+  grid-auto-rows: max-content;
   gap: 14px;
   min-height: 0;
   overflow: hidden;
@@ -1023,6 +1026,7 @@ small {
   display: grid;
   align-content: start;
   gap: 10px;
+  min-height: 0;
   padding: 12px;
   color: var(--text);
   text-align: left;
@@ -1114,6 +1118,15 @@ small {
 .video-card em {
   color: var(--cyan);
   font-style: normal;
+}
+
+.video-preload {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .video-modal {
