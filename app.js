@@ -82,14 +82,53 @@ function majorRiskTotalForRisk(riskId) {
   return majorRiskStationsForRisk(riskId).reduce((sum, station) => sum + station.count, 0);
 }
 
+function realConstructionAlertRows() {
+  return [
+    {
+      title: "凉风垭储配站 周边施工低风险视频预警",
+      time: "2026-05-30 17:42:16",
+      station: "凉风垭储配站",
+      region: "重庆/垫江/鼎发燃气",
+      camera: "凉风垭储配站 01#枪机",
+      distance: "62m低风险区",
+      level: "低风险",
+      beforeAfter: "前后30s视频",
+      frequency: { low: 1, medium: 0, high: 0, critical: 0 },
+      cause: "视频识别到施工人员或设备处于低风险关注区，暂未进入管道红线或管控区。",
+      impact: "当前对管道安全影响较低，但需持续关注后续是否出现机械靠近或开挖行为。",
+      advice: "点击查看视频大图，保留视频证据并持续跟踪该点位施工动态。",
+      thumbnail: "",
+      videoUrl: "./assets/videos/third-party-construction-low-risk.mp4",
+    },
+    {
+      title: "垫江工业园区配气站 周边施工低风险视频预警",
+      time: "2026-05-30 17:39:08",
+      station: "垫江工业园区配气站",
+      region: "重庆/垫江/鼎发燃气",
+      camera: "垫江工业园区配气站 02#枪机",
+      distance: "58m低风险区",
+      level: "低风险",
+      beforeAfter: "前后30s视频",
+      frequency: { low: 1, medium: 0, high: 0, critical: 0 },
+      cause: "视频识别到施工活动处于低风险关注范围，暂未发现机械越界或开挖动作。",
+      impact: "当前风险较低，但施工活动可能随时间向管控区靠近，需要保持视频跟踪。",
+      advice: "点击查看视频大图，持续抽帧观察并在出现机械靠近时自动升级预警。",
+      thumbnail: "",
+      videoUrl: "./assets/videos/third-party-construction-low-risk-2.mp4",
+    },
+  ];
+}
+
 function riskListCount(riskId) {
   if (state.majorRiskFilter && riskId === state.activeRiskId) return majorRiskTotalForRisk(riskId);
+  if (riskId === "construction") return realConstructionAlertRows().length;
   return dashboardData.stationRiskRatios.reduce((sum, station) => sum + stationRiskCount(station, riskId), 0);
 }
 
 function stationDisplayCount(station, riskId = state.activeRiskId) {
   const segment = riskSegmentForStation(station, riskId);
   if (state.majorRiskFilter) return segment?.value >= 36 ? stationRiskCount(station, riskId) : 0;
+  if (riskId === "construction") return realConstructionAlertRows().filter((row) => row.station === station.station).length;
   return stationRiskCount(station, riskId);
 }
 
@@ -388,6 +427,10 @@ function activeAlert() {
 
 function currentAlertRows() {
   const station = activeStation();
+  if (state.activeRiskId === "construction" && !state.majorRiskFilter) {
+    const rows = realConstructionAlertRows();
+    return station ? rows.filter((row) => row.station === station.station) : rows;
+  }
   if (station) return buildStationRows(station, state.activeRiskId);
   if (state.majorRiskFilter) return buildMajorControlRows(state.activeRiskId);
   return dashboardData.stationRiskRatios.flatMap((item) => buildStationRows(item, state.activeRiskId));
