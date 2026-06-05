@@ -410,6 +410,11 @@ small {
   box-shadow: 0 0 18px var(--orange);
 }
 
+.stat-card.info::after {
+  background: var(--blue);
+  box-shadow: 0 0 18px var(--blue);
+}
+
 .stat-card.good::after {
   background: var(--green);
   box-shadow: 0 0 18px var(--green);
@@ -630,9 +635,8 @@ small {
   font-size: 12px;
 }
 
-.critical,
 .high {
-  color: #fecdd3;
+  color: #fed7aa;
 }
 
 .medium {
@@ -841,15 +845,11 @@ small {
 }
 
 .risk-table td strong.pressure-medium {
-  color: #fb923c;
-}
-
-.risk-table td strong.pressure-high {
   color: #facc15;
 }
 
-.risk-table td strong.pressure-critical {
-  color: #f43f5e;
+.risk-table td strong.pressure-high {
+  color: #fb923c;
 }
 
 .risk-table tr:hover td {

@@ -11,9 +11,9 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const videoBlobCache = new Map();
 let videoCacheStarted = false;
+const HIGH_RISK_SHARE_THRESHOLD = 26;
 
 function getLevel(score) {
-  if (score >= 75) return { name: "重大", className: "critical" };
   if (score >= 50) return { name: "高", className: "high" };
   if (score >= 30) return { name: "中", className: "medium" };
   return { name: "低", className: "low" };
@@ -70,7 +70,7 @@ function majorRiskStationsForRisk(riskId) {
   return dashboardData.stationRiskRatios
     .map((station) => {
       const segment = station.segments.find((item) => item.name === name);
-      if (!segment || segment.value < 36) return null;
+      if (!segment || segment.value < HIGH_RISK_SHARE_THRESHOLD) return null;
       return {
         name: station.station,
         count: Math.max(1, Math.round((station.total * segment.value) / 100)),
@@ -139,7 +139,7 @@ function riskListCount(riskId) {
 
 function stationDisplayCount(station, riskId = state.activeRiskId) {
   const segment = riskSegmentForStation(station, riskId);
-  if (state.majorRiskFilter) return segment?.value >= 36 ? stationRiskCount(station, riskId) : 0;
+  if (state.majorRiskFilter) return segment?.value >= HIGH_RISK_SHARE_THRESHOLD ? stationRiskCount(station, riskId) : 0;
   if (riskId === "construction") return realConstructionAlertRows().filter((row) => row.station === station.station).length;
   return stationRiskCount(station, riskId);
 }
@@ -259,7 +259,6 @@ function renderRiskLevelLegend() {
     低风险: "蓝色",
     中风险: "黄色",
     高风险: "橙色",
-    重大风险: "红色",
   };
 
   $("#riskLevelLegend").innerHTML = dashboardData.riskLevels
@@ -347,7 +346,7 @@ function renderRatioPanels() {
         .map((item) => {
           const stationText = item.stations.length
             ? item.stations.map((station) => `${station.name}${station.count}件`).join("、")
-            : "暂无重大风险站点";
+            : "暂无高风险站点";
           const isActive = item.count > 0;
           const statusText = isActive ? "需立即关注" : "运行平稳";
           const riskId = riskIdByName(item.name);
@@ -355,12 +354,12 @@ function renderRatioPanels() {
           return `
             <button class="major-risk-card ${isActive ? "active" : ""} ${isSelected ? "selected" : ""}" type="button" data-risk-id="${riskId}">
               <div class="major-risk-top">
-                <span class="danger-mark" style="background:${isActive ? "#f43f5e" : "rgba(148, 163, 184, .28)"}">${isActive ? "!" : "✓"}</span>
+                <span class="danger-mark" style="background:${isActive ? "#fb923c" : "rgba(148, 163, 184, .28)"}">${isActive ? "!" : "✓"}</span>
                 <strong>${item.name}</strong>
               </div>
               <div class="major-risk-number">
                 <em>${item.count}</em>
-                <span>重大预警</span>
+                <span>高风险预警</span>
               </div>
               <p>${stationText}</p>
               <small>${statusText}</small>
@@ -424,7 +423,7 @@ function renderStationControl() {
         <button class="station-control-card ${isActive ? "active" : ""}" type="button" data-station="${station.station}">
           <span>
             <strong>${station.station}</strong>
-            <small>${state.majorRiskFilter ? "重大风险占比" : `${riskTypeName()}占比`} ${share}%</small>
+            <small>${state.majorRiskFilter ? "高风险占比" : `${riskTypeName()}占比`} ${share}%</small>
           </span>
           <em>${riskCount}件</em>
         </button>
@@ -465,7 +464,6 @@ function currentAlertRows() {
 }
 
 function stationRiskLevel(percent) {
-  if (percent >= 36) return "重大风险";
   if (percent >= 26) return "高风险";
   if (percent >= 16) return "中风险";
   return "低风险";
@@ -476,7 +474,7 @@ function stationFrequency(percent) {
     low: Math.max(1, Math.round(percent / 12)),
     medium: Math.max(0, Math.round(percent / 18)),
     high: Math.max(0, Math.round(percent / 28)),
-    critical: percent >= 36 ? 1 : 0,
+    critical: 0,
   };
 }
 
@@ -486,22 +484,46 @@ function stationFrequencyByCount(count, level) {
     低风险: "low",
     中风险: "medium",
     高风险: "high",
-    重大风险: "critical",
   }[level] || "low";
   frequency[key] = count;
   return frequency;
 }
 
-function cathodicLevelByOffPotential(value, sustainedHours = 2) {
+function strainLevelByValue(value) {
+  const strain = Number.parseFloat(value);
+  if (Number.isNaN(strain)) return "正常";
+  if (strain >= 500) return "高风险";
+  if (strain >= 300) return "中风险";
+  if (strain >= 120) return "低风险";
+  return "正常";
+}
+
+function gasLevelByValue(value) {
+  const gas = Number.parseFloat(value);
+  if (Number.isNaN(gas)) return "正常";
+  if (gas >= 50) return "高风险";
+  if (gas >= 20) return "中风险";
+  if (gas >= 10) return "低风险";
+  return "正常";
+}
+
+function pressureLevelByKpa(value) {
+  const pressure = Number.parseFloat(value);
+  if (Number.isNaN(pressure)) return "正常";
+  if (pressure >= 380) return "高风险";
+  if (pressure >= 370) return "中风险";
+  if (pressure >= 360 || pressure < 300) return "低风险";
+  return "正常";
+}
+
+function cathodicLevelByOffPotential(value) {
   const potential = Number(value);
   if (Number.isNaN(potential)) return "正常";
-  if (sustainedHours < 2 && potential > -0.85) return "低风险";
-  if (potential > -0.68) return "重大风险";
-  if (potential > -0.77) return "高风险";
-  if (potential > -0.81) return "中风险";
+  if (potential > -0.75 || potential < -1.3) return "高风险";
+  if (potential < -1.2) return "中风险";
   if (potential > -0.85) return "低风险";
-  if (potential >= -1.2) return "正常";
-  return "高风险";
+  if (potential >= -1.2 && potential <= -0.85) return "正常";
+  return "正常";
 }
 
 function withCathodicLevel(row) {
@@ -509,6 +531,37 @@ function withCathodicLevel(row) {
     ...row,
     level: cathodicLevelByOffPotential(row.offPotential, row.sustainedHours),
   };
+}
+
+function cathodicMetrics(row) {
+  return [
+    { label: "断电电位", value: `${row.offPotential} V`, state: row.level || cathodicLevelByOffPotential(row.offPotential) },
+    { label: "直流电流密度", value: row.dcDensity, state: "同步监测" },
+    { label: "交流电压", value: `${row.acVoltage} V`, state: "同步监测" },
+    { label: "阳极输出电流", value: `${row.anodeCurrent} mA`, state: "同步监测" },
+  ];
+}
+
+function riskThresholdText(riskId, alert) {
+  if (riskId === "strain") {
+    return `当前应变值：${alert.strain} με；阈值：正常 < 120με，低风险 120με ≤ ε < 300με，中风险 300με ≤ ε < 500με，高风险 ε ≥ 500με；当前判定：${alert.level}`;
+  }
+
+  if (riskId === "cathodic") {
+    return `当前断电电位：${alert.offPotential} V；阈值：正常 -1.20V ≤ U ≤ -0.85V，低风险 U > -0.85V，中风险 U < -1.20V，高风险 U > -0.75V 或 U < -1.30V；当前判定：${alert.level}；辅助指标：直流电流密度 ${alert.dcDensity}，交流电压 ${alert.acVoltage} V，阳极输出电流 ${alert.anodeCurrent} mA`;
+  }
+
+  if (riskId === "leak") {
+    return `当前气体浓度：${alert.gas}；阈值：正常 < 10% LEL，低风险 10%-20% LEL，中风险 20%-50% LEL，高风险 ≥ 50% LEL；当前判定：${alert.level}；同步压力：${alert.pressure || "-"}`;
+  }
+
+  if (riskId === "pressure") {
+    return `当前压力：${alert.pressure} kPa；阈值：正常 300-360kPa，低风险 360-370kPa 或 < 300kPa，中风险 370-380kPa，高风险 ≥ 380kPa；当前判定：${alert.level}`;
+  }
+
+  return (alert.metrics || activeRisk().metrics)
+    .map((metric) => `${metric.label}：${metric.value}（${metric.state}）`)
+    .join("；");
 }
 
 function buildMajorControlRows(riskId) {
@@ -526,17 +579,17 @@ function buildMajorControlRows(riskId) {
         time: `2026-05-30 17:${minute}:${second}`,
         station: stationInfo.name,
         region: "重庆/垫江/鼎发燃气",
-        level: "重大风险",
-        frequency: { low: 0, medium: 0, high: 0, critical: stationInfo.count },
-        cause: `${stationInfo.name}${risk.name}重大风险累计${stationInfo.count}件，当前纳入重大风险管控筛选，需按站点和风险类型集中核查。`,
-        impact: `该风险类型共触发${total}条重大告警，若未及时处置，可能影响站点安全裕度、管段运行稳定和应急资源调度。`,
-        advice: `优先处理${stationInfo.name}相关告警，核查实时监测值、现场设备状态和历史处置记录，并将${total}条重大风险纳入闭环工单。`,
+        level: "高风险",
+        frequency: { low: 0, medium: 0, high: stationInfo.count, critical: 0 },
+        cause: `${stationInfo.name}${risk.name}高风险累计${stationInfo.count}件，当前纳入高风险管控筛选，需按站点和风险类型集中核查。`,
+        impact: `该风险类型共触发${total}条高风险告警，若未及时处置，可能影响站点安全裕度、管段运行稳定和应急资源调度。`,
+        advice: `优先处理${stationInfo.name}相关告警，核查实时监测值、现场设备状态和历史处置记录，并将${total}条高风险纳入闭环工单。`,
       };
 
       if (riskId === "construction") {
         return {
           ...common,
-          title: `${stationInfo.name} 周边施工重大预警 ${sequence}`,
+          title: `${stationInfo.name} 周边施工高风险预警 ${sequence}`,
           camera: `${stationInfo.name} ${String(sequence).padStart(2, "0")}#球机`,
           distance: sequence % 2 ? "8m红区" : "10m红区",
           beforeAfter: "前后30s视频",
@@ -554,7 +607,7 @@ function buildMajorControlRows(riskId) {
       }
 
       if (riskId === "cathodic") {
-        return {
+        const row = {
           ...common,
           station: `${stationInfo.name} CP-${String(sequence).padStart(3, "0")}`,
           offPotential: (-0.62 - (sequence % 3) * 0.015).toFixed(2),
@@ -568,6 +621,7 @@ function buildMajorControlRows(riskId) {
           signal: `${92 - (sequence % 4)}%`,
           battery: (3.62 - (sequence % 3) * 0.01).toFixed(2),
         };
+        return { ...row, metrics: cathodicMetrics(row) };
       }
 
       if (riskId === "leak") {
@@ -575,8 +629,8 @@ function buildMajorControlRows(riskId) {
           ...common,
           code: `DF-GAS-M${String(sequence).padStart(3, "0")}`,
           type: "物联网阀门井气体报警器",
-          pressure: `${(0.42 + (sequence % 3) * 0.01).toFixed(2)}MPa`,
-          gas: `${18 + (sequence % 4)}%LEL`,
+          pressure: `${380 + (sequence % 4) * 3}kPa`,
+          gas: `${52 + (sequence % 5)}%LEL`,
         };
       }
 
@@ -584,7 +638,7 @@ function buildMajorControlRows(riskId) {
         ...common,
         code: `DF-PT-M${String(sequence).padStart(3, "0")}`,
         type: "智能远程压力监测终端",
-        pressure: (1.56 + (sequence % 4) * 0.01).toFixed(2),
+        pressure: String(382 + (sequence % 5) * 2),
       };
     }),
   );
@@ -631,13 +685,15 @@ function buildStationRows(station, riskId) {
     const offPotentials = [-0.66, -0.73, -0.79, -0.83];
     return Array.from({ length: count }, (_, item) => {
       const offPotential = offPotentials[item % offPotentials.length];
-      return {
+      const derivedLevel = cathodicLevelByOffPotential(offPotential);
+      const row = {
       ...common,
+      level: derivedLevel,
+      frequency: stationFrequencyByCount(count, derivedLevel),
       time: `2026-05-30 17:${42 - item}:16`,
       station: `${station.station} CP-${String(17 + item).padStart(3, "0")}`,
       offPotential: offPotential.toFixed(2),
       sustainedHours: 2,
-      level: cathodicLevelByOffPotential(offPotential, 2),
       dcDensity: (10 + segment.value / 2 - item * 0.9).toFixed(1),
       acDensity: (2.1 + segment.value / 20 - item * 0.2).toFixed(1),
       acVoltage: (4.6 + segment.value / 10 - item * 0.3).toFixed(1),
@@ -647,24 +703,35 @@ function buildStationRows(station, riskId) {
       signal: `${92 - item * 3}%`,
       battery: (3.62 - item * 0.03).toFixed(2),
       };
+      return { ...row, metrics: cathodicMetrics(row) };
     });
   }
 
   const fieldByRisk = {
-    strain: { code: "SS", type: "管道应力应变监测终端", key: "strain", values: ["418", "392", "356", "311"] },
-    leak: { code: "GAS", type: "物联网阀门井气体报警器", key: "gas", values: ["16%LEL", "11%LEL", "7%LEL", "4%LEL"], pressureValues: ["0.42MPa", "0.39MPa", "0.36MPa", "0.34MPa"] },
-    pressure: { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["1.56", "1.51", "1.47", "1.42"] },
-  }[riskId] || { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["1.50", "1.46", "1.43", "1.39"] };
+    strain: { code: "SS", type: "管道应力应变监测终端", key: "strain", values: ["560", "482", "326", "168"] },
+    leak: { code: "GAS", type: "物联网阀门井气体报警器", key: "gas", values: ["55%LEL", "32%LEL", "16%LEL", "8%LEL"], pressureValues: ["382kPa", "376kPa", "365kPa", "330kPa"] },
+    pressure: { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["385", "376", "365", "295"] },
+  }[riskId] || { code: "PT", type: "智能远程压力监测终端", key: "pressure", values: ["365", "330", "320", "310"] };
 
-  return Array.from({ length: count }, (_, item) => ({
-    ...common,
-    time: `2026-05-30 17:${42 - item}:1${6 - item}`,
-    station: station.station,
-    code: `DF-${fieldByRisk.code}-${baseCode}${String(item + 1).padStart(3, "0")}`,
-    type: fieldByRisk.type,
-    pressure: riskId === "leak" ? fieldByRisk.pressureValues[item % fieldByRisk.pressureValues.length] : undefined,
-    [fieldByRisk.key]: fieldByRisk.values[item % fieldByRisk.values.length],
-  }));
+  return Array.from({ length: count }, (_, item) => {
+    const value = fieldByRisk.values[item % fieldByRisk.values.length];
+    const derivedLevel = {
+      strain: strainLevelByValue(value),
+      leak: gasLevelByValue(value),
+      pressure: pressureLevelByKpa(value),
+    }[riskId] || common.level;
+    return {
+      ...common,
+      level: derivedLevel,
+      frequency: stationFrequencyByCount(count, derivedLevel),
+      time: `2026-05-30 17:${42 - item}:1${6 - item}`,
+      station: station.station,
+      code: `DF-${fieldByRisk.code}-${baseCode}${String(item + 1).padStart(3, "0")}`,
+      type: fieldByRisk.type,
+      pressure: riskId === "leak" ? fieldByRisk.pressureValues[item % fieldByRisk.pressureValues.length] : undefined,
+      [fieldByRisk.key]: value,
+    };
+  });
 }
 
 function pressureClass(level) {
@@ -673,16 +740,15 @@ function pressureClass(level) {
     低风险: "pressure-low",
     中风险: "pressure-medium",
     高风险: "pressure-high",
-    重大风险: "pressure-critical",
   }[level] || "pressure-normal";
 }
 
-function renderEmptyRealtime(message = "暂无重大风险数据") {
+function renderEmptyRealtime(message = "暂无高风险数据") {
   $("#realtimeContent").innerHTML = `
     <div class="empty-state">
       <span>!</span>
       <strong>${message}</strong>
-      <p>当前筛选条件下未发现需要处置的重大风险告警。</p>
+      <p>当前筛选条件下未发现需要处置的高风险告警。</p>
     </div>
   `;
 }
@@ -709,9 +775,9 @@ function renderRealtimeAlerts() {
 
   const valueLabels = {
     leak: "LEL",
-    pressure: "压力 MPa",
+    pressure: "压力 kPa",
   };
-  panelLabel.textContent = valueLabels[state.activeRiskId] || "压力 MPa";
+  panelLabel.textContent = valueLabels[state.activeRiskId] || "压力 kPa";
   const rows = currentAlertRows();
   if (!rows.length) {
     renderEmptyRealtime();
@@ -720,7 +786,7 @@ function renderRealtimeAlerts() {
   const valueColumn = {
     strain: "应变με",
     leak: "气体浓度",
-    pressure: "压力MPa",
+    pressure: "压力kPa",
   }[state.activeRiskId] || "监测值";
   const leakExtraHeader = state.activeRiskId === "leak" ? "<th>压力</th>" : "";
   const { pageRows, start } = pagedAlertRows(rows);
@@ -935,21 +1001,19 @@ function renderSelectedAnalysis() {
     $("#selectedAnalysis").innerHTML = `
       <article class="model-analysis empty-analysis">
         <div class="analysis-summary">
-          <strong>${risk.name}暂无重大风险告警</strong>
-          <span>重大风险筛选</span>
+          <strong>${risk.name}暂无高风险告警</strong>
+          <span>高风险筛选</span>
         </div>
         <section>
           <h3>研判结果</h3>
-          <p>当前风险类型下未发现重大风险实时告警，建议保持常规监测，并持续关注站点风险管控与趋势变化。</p>
+          <p>当前风险类型下未发现高风险实时告警，建议保持常规监测，并持续关注站点风险管控与趋势变化。</p>
         </section>
       </article>
     `;
     return;
   }
-  const frequencyText = `低风险 ${alert.frequency.low} 次，中风险 ${alert.frequency.medium} 次，高风险 ${alert.frequency.high} 次，重大风险 ${alert.frequency.critical} 次。`;
-  const metricText = (alert.metrics || risk.metrics)
-    .map((metric) => `${metric.label}：${metric.value}（${metric.state}）`)
-    .join("；");
+  const frequencyText = `低风险 ${alert.frequency.low} 次，中风险 ${alert.frequency.medium} 次，高风险 ${alert.frequency.high} 次。`;
+  const metricText = riskThresholdText(risk.id, alert);
 
   $("#selectedAlertLabel").textContent = alert.station || alert.title;
   $("#selectedAnalysis").innerHTML = `
