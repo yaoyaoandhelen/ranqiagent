@@ -1,10 +1,10 @@
 const state = {
   activeRiskId: dashboardData.risks[0].id,
-  activeStation: null,
   activeAlertIndex: 0,
   activeAlertPage: 1,
   alertPageSize: 10,
   trendRange: "today",
+  riskTrendRange: "today",
   majorRiskFilter: false,
 };
 
@@ -21,10 +21,6 @@ function getLevel(score) {
 
 function activeRisk() {
   return dashboardData.risks.find((risk) => risk.id === state.activeRiskId);
-}
-
-function activeStation() {
-  return dashboardData.stationRiskRatios.find((station) => station.station === state.activeStation);
 }
 
 function riskTypeName(riskId = state.activeRiskId) {
@@ -48,16 +44,6 @@ function riskDescription(riskId) {
     leak: "阀井或管段气体浓度异常泄漏风险",
     pressure: "运行压力超限或波动异常风险",
   }[riskId] || "当前风险类型的监测告警";
-}
-
-function stationRiskMutedColor(name) {
-  return {
-    第三方施工: "#b98a8f",
-    应力应变: "#b79a7a",
-    阴极保护: "#b5ad7d",
-    泄漏检测: "#9189b3",
-    压力检测: "#7fa7ad",
-  }[name] || "#8fa4b8";
 }
 
 function stationRiskCount(station, riskId = state.activeRiskId) {
@@ -87,11 +73,12 @@ function majorRiskTotalForRisk(riskId) {
 function realConstructionAlertRows() {
   return [
     {
-      title: "凉风垭储配站 周边施工低风险视频预警",
+      title: "周边施工低风险视频预警",
       time: "2026-05-30 17:42:16",
       station: "凉风垭储配站",
       region: "重庆/垫江/鼎发燃气",
-      camera: "凉风垭储配站 01#监控",
+      camera: "01#监控",
+      deviceName: "垫江县桂西路01#监控",
       distance: "62m低风险区",
       level: "低风险",
       beforeAfter: "前后30s视频",
@@ -108,11 +95,12 @@ function realConstructionAlertRows() {
       videoUrl: "./assets/videos/third-party-construction-low-risk.mp4",
     },
     {
-      title: "垫江工业园区配气站 周边施工低风险视频预警",
+      title: "周边施工低风险视频预警",
       time: "2026-05-30 17:39:08",
       station: "垫江工业园区配气站",
       region: "重庆/垫江/鼎发燃气",
-      camera: "垫江工业园区配气站 02#监控",
+      camera: "02#监控",
+      deviceName: "垫江县工业园区迎宾路02#监控",
       distance: "58m低风险区",
       level: "低风险",
       beforeAfter: "前后30s视频",
@@ -133,21 +121,7 @@ function realConstructionAlertRows() {
 
 function riskListCount(riskId) {
   if (state.majorRiskFilter && riskId === state.activeRiskId) return majorRiskTotalForRisk(riskId);
-  if (riskId === "construction") return realConstructionAlertRows().length;
-  return dashboardData.stationRiskRatios.reduce((sum, station) => sum + stationRiskCount(station, riskId), 0);
-}
-
-function stationDisplayCount(station, riskId = state.activeRiskId) {
-  const segment = riskSegmentForStation(station, riskId);
-  if (state.majorRiskFilter) return segment?.value >= HIGH_RISK_SHARE_THRESHOLD ? stationRiskCount(station, riskId) : 0;
-  if (riskId === "construction") return realConstructionAlertRows().filter((row) => row.station === station.station).length;
-  return stationRiskCount(station, riskId);
-}
-
-function stationRiskShare(station, riskId = state.activeRiskId) {
-  const total = dashboardData.stationRiskRatios.reduce((sum, item) => sum + stationDisplayCount(item, riskId), 0);
-  if (!total) return 0;
-  return Math.round((stationDisplayCount(station, riskId) / total) * 100);
+  return dashboardData.typeRatios.find((item) => riskIdByName(item.name) === riskId)?.count || 0;
 }
 
 function resetAlertSelection() {
@@ -239,19 +213,8 @@ function warmVideoCache() {
     });
 }
 
-function renderHeroStats() {
+function renderUpdatedAt() {
   $("#updatedAt").textContent = `更新时间 ${dashboardData.updatedAt}`;
-  $("#heroStats").innerHTML = dashboardData.stats
-    .map(
-      (item) => `
-        <article class="stat-card ${item.tone}">
-          <span>${item.label}</span>
-          <strong>${item.value}<small>${item.unit}</small></strong>
-          <em>${item.trend}</em>
-        </article>
-      `,
-    )
-    .join("");
 }
 
 function renderRiskLevelLegend() {
@@ -273,68 +236,159 @@ function renderRiskLevelLegend() {
     .join("");
 }
 
-function renderRatioPanels() {
-  const legendItems = dashboardData.typeRatios
-    .map(
-      (item) => `
-        <span><i style="background:${stationRiskMutedColor(item.name)}"></i>${item.name}</span>
-      `,
-    )
-    .join("");
-  const chartWidth = 720;
-  const chartHeight = 250;
-  const left = 142;
-  const top = 38;
-  const cellWidth = 104;
-  const cellHeight = 26;
-  const gap = 6;
-  const riskCounts = dashboardData.stationRiskRatios.flatMap((station) =>
-    station.segments.map((segment) => Math.max(0, Math.round((station.total * segment.value) / 100))),
-  );
-  const maxRiskCount = Math.max(...riskCounts, 1);
+function enterpriseLevelMeta(level) {
+  const meta = {
+    蓝色: { label: "蓝色", color: "#38bdf8", className: "blue" },
+    黄色: { label: "黄色", color: "#facc15", className: "yellow" },
+    橙色: { label: "橙色", color: "#fb923c", className: "orange" },
+    红色: { label: "红色", color: "#fb5a70", className: "red" },
+  };
+  return meta[level] || meta["蓝色"];
+}
 
-  $("#stationRiskChart").innerHTML = `
-    <div class="station-risk-legend">${legendItems}</div>
-    <svg class="station-risk-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="各风险类型在各站点的风险数量热力图">
-      ${dashboardData.typeRatios
-        .map((riskType, index) => `
-          <text x="${left + index * cellWidth + cellWidth / 2}" y="22" class="station-risk-type-label">${riskType.name}</text>
-        `)
+function formatAmount(value) {
+  return Math.round(value).toLocaleString("zh-CN");
+}
+
+function enterpriseRiskName(item) {
+  if (item.warningType === "疑似停产预警") return "疑似停产";
+  if (item.warningType === "用气下降 + 回款下降复合预警") return "疑似减产";
+  if (item.warningType === "回款异常预警") return "回款异常";
+  if (item.warningType === "经营波动异常预警") return "经营波动";
+  return "正常监测";
+}
+
+function enterpriseReport(item) {
+  if (item.warningType === "疑似停产预警") {
+    return `【疑似停产预警】${item.company}已连续${item.zeroGasDays}天燃气用量为0或接近0，明显低于历史正常用气水平。系统判断存在停产、停业、表计异常或数据缺失可能，建议优先核查。`;
+  }
+
+  if (item.warningType === "回款异常预警") {
+    return `【回款异常预警】${item.company}本期应收金额${formatAmount(item.receivable)}元，实收金额${formatAmount(item.received)}元，回款率为${item.collectionRate}%，低于预警阈值。建议关注企业缴费和经营压力情况。`;
+  }
+
+  if (item.warningType === "用气下降 + 回款下降复合预警") {
+    return `【疑似减产预警】${item.company}近7日平均燃气用量为${formatAmount(item.weekAverage)}，较近30日基线下降${item.declineRate}%，已连续${item.abnormalDays}天低于正常水平。同期回款率为${item.collectionRate}%，系统判断该企业存在减产或经营波动可能，建议进一步核实生产经营状态。`;
+  }
+
+  if (item.warningType === "经营波动异常预警") {
+    return `【疑似减产预警】${item.company}近7日平均燃气用量为${formatAmount(item.weekAverage)}，较近30日基线下降${item.declineRate}%，近7日用气波动率高于近30日基线。系统判断该企业存在减产或经营波动可能，建议进一步核实生产经营状态。`;
+  }
+
+  return `【常态监测】${item.company}近7日平均燃气用量为${formatAmount(item.weekAverage)}，回款率为${item.collectionRate}%，当前用气与缴费状态处于正常监测范围。`;
+}
+
+function elderlyLevelMeta(level) {
+  const meta = {
+    红色: { color: "#fb5a70", className: "red" },
+    橙色: { color: "#fb923c", className: "orange" },
+    黄色: { color: "#facc15", className: "yellow" },
+  };
+  return meta[level] || meta["黄色"];
+}
+
+function elderlyReport(item) {
+  return `${item.name}，${item.address}，${item.age}岁，${item.reason}。${item.analysis}`;
+}
+
+function renderElderlyMonitorPanel() {
+  const elderlyItems = dashboardData.elderlyMonitoring;
+  const riskSummaries = [
+    { name: "长期未用气", level: "红色", rule: "连续3天用气量 = 0" },
+    { name: "长期低程度用气", level: "红色", rule: "连续3天用气量低于日常均值10%" },
+    { name: "用气骤降", level: "橙色", rule: "近24小时或近3日低于30日均值30%" },
+    { name: "用气异常升高", level: "黄色", rule: "近24小时高于30日均值200%" },
+  ].map((summary) => ({
+    ...summary,
+    count: elderlyItems.filter((item) => item.riskName === summary.name).length,
+    ...elderlyLevelMeta(summary.level),
+  }));
+
+  $("#elderlyMonitorContent").innerHTML = `
+    <div class="elderly-risk-grid">
+      ${riskSummaries
+        .map(
+          (item) => `
+            <article class="elderly-risk-card ${item.className}">
+              <span>${item.name}</span>
+              <strong>${item.count}</strong>
+              <small>${item.rule}</small>
+            </article>
+          `,
+        )
         .join("")}
-      ${dashboardData.stationRiskRatios
-        .map((station, index) => {
-          const y = top + index * (cellHeight + gap);
-          const shortName = station.station
-            .replace("垫江", "")
-            .replace("工业园区", "工业园")
-            .replace("配气站", "站")
-            .replace("澄溪", "");
+    </div>
+    <h3 class="elderly-analysis-title">分析结果</h3>
+    <div class="elderly-analysis-list">
+      ${elderlyItems
+        .map((item) => {
+          const level = elderlyLevelMeta(item.level);
           return `
-            <g>
-              <text x="0" y="${y + 18}" class="station-risk-row-name">${shortName}</text>
-              ${dashboardData.typeRatios
-                .map((riskType, colIndex) => {
-                  const segment = station.segments.find((item) => item.name === riskType.name);
-                  const count = Math.max(0, Math.round((station.total * (segment?.value || 0)) / 100));
-                  const opacity = 0.24 + (count / maxRiskCount) * 0.68;
-                  const x = left + colIndex * cellWidth;
-                  const cellColor = stationRiskMutedColor(riskType.name);
-                  return `
-                    <rect x="${x}" y="${y}" width="${cellWidth - gap}" height="${cellHeight}" rx="7" fill="${cellColor}" opacity="${opacity}" class="station-risk-cell">
-                      <title>${station.station} - ${riskType.name}：${count}件</title>
-                    </rect>
-                    <text x="${x + (cellWidth - gap) / 2}" y="${y + 18}" class="station-risk-count">${count}</text>
-                  `;
-                })
-                .join("")}
-            </g>
+            <article class="elderly-analysis-item ${level.className}">
+              <div>
+                <strong>${item.name} · ${item.age}岁</strong>
+                <span>${item.riskName} · ${item.level}</span>
+              </div>
+              <p>${elderlyReport(item)}</p>
+            </article>
           `;
         })
         .join("")}
-      <text x="${left}" y="${chartHeight - 8}" class="station-risk-note">横向为风险类型，纵向为站点；数字为告警件数，色块亮度表示数量高低。</text>
-    </svg>
+    </div>
   `;
+}
 
+function renderEnterpriseRiskPanel() {
+  const enterprises = dashboardData.enterpriseMonitoring;
+  const levelOrder = ["红色", "橙色", "黄色", "蓝色"];
+  const riskSummary = [
+    { name: "疑似停产", level: "红色" },
+    { name: "疑似减产", level: "橙色" },
+    { name: "回款异常", level: "黄色" },
+    { name: "经营波动", level: "黄色" },
+  ].map((summary) => ({
+    ...summary,
+    count: enterprises.filter((item) => enterpriseRiskName(item) === summary.name).length,
+    ...enterpriseLevelMeta(summary.level),
+  }));
+  const focused = enterprises
+    .filter((item) => item.warningType !== "正常监测")
+    .sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
+
+  $("#enterpriseRiskContent").innerHTML = `
+    <h3 class="enterprise-analysis-title">企业经营分析</h3>
+    <div class="enterprise-levels">
+      ${riskSummary
+        .map(
+          (item) => `
+            <article class="enterprise-level ${item.className}">
+              <span>${item.name}</span>
+              <strong>${item.count}</strong>
+            </article>
+          `,
+        )
+        .join("")}
+    </div>
+    <div class="enterprise-risk-list">
+      ${focused
+        .map((item) => {
+          const level = enterpriseLevelMeta(item.level);
+          return `
+            <article class="enterprise-risk-item ${level.className}">
+              <div>
+                <strong>${item.company}</strong>
+                <span>${enterpriseRiskName(item)} · ${item.level}</span>
+              </div>
+              <p>${enterpriseReport(item)}</p>
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderMajorRiskPanel() {
   const majorRisks = dashboardData.typeRatios.map((riskType) => {
     const stations = majorRiskStationsForRisk(riskIdByName(riskType.name));
     return { ...riskType, stations, count: stations.reduce((sum, item) => sum + item.count, 0) };
@@ -345,8 +399,8 @@ function renderRatioPanels() {
       ${majorRisks
         .map((item) => {
           const stationText = item.stations.length
-            ? item.stations.map((station) => `${station.name}${station.count}件`).join("、")
-            : "暂无高风险站点";
+            ? `${item.name}高风险预警已进入集中管控`
+            : "暂无高风险预警";
           const isActive = item.count > 0;
           const statusText = isActive ? "需立即关注" : "运行平稳";
           const riskId = riskIdByName(item.name);
@@ -373,7 +427,6 @@ function renderRatioPanels() {
   document.querySelectorAll(".major-risk-card").forEach((card) => {
     card.addEventListener("click", () => {
       state.activeRiskId = card.dataset.riskId;
-      state.activeStation = null;
       resetAlertSelection();
       state.majorRiskFilter = true;
       renderAll();
@@ -386,12 +439,13 @@ function renderRiskList() {
     .map((risk) => {
       const level = getLevel(risk.score);
       const displayValue = riskListCount(risk.id);
+      const description = riskDescription(risk.id);
       return `
         <button class="risk-card ${risk.id === state.activeRiskId ? "active" : ""}" data-risk-id="${risk.id}">
           <span class="risk-icon">${risk.icon}</span>
           <span class="risk-main">
             <strong>${risk.name}</strong>
-            <small>${riskDescription(risk.id)}</small>
+            <small title="${description}">${description}</small>
           </span>
           <span class="risk-score ${level.className}">
             ${displayValue}
@@ -404,42 +458,6 @@ function renderRiskList() {
   document.querySelectorAll(".risk-card").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeRiskId = button.dataset.riskId;
-      state.activeStation = null;
-      resetAlertSelection();
-      state.majorRiskFilter = false;
-      renderAll();
-    });
-  });
-}
-
-function renderStationControl() {
-  $("#clearStation").classList.toggle("active", !state.activeStation);
-  $("#stationControlList").innerHTML = dashboardData.stationRiskRatios
-    .map((station) => {
-      const riskCount = stationDisplayCount(station);
-      const share = stationRiskShare(station);
-      const isActive = station.station === state.activeStation;
-      return `
-        <button class="station-control-card ${isActive ? "active" : ""}" type="button" data-station="${station.station}">
-          <span>
-            <strong>${station.station}</strong>
-            <small>${state.majorRiskFilter ? "高风险占比" : `${riskTypeName()}占比`} ${share}%</small>
-          </span>
-          <em>${riskCount}件</em>
-        </button>
-      `;
-    })
-    .join("");
-
-  $("#clearStation").onclick = () => {
-    state.activeStation = null;
-    resetAlertSelection();
-    renderAll();
-  };
-
-  document.querySelectorAll(".station-control-card").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.activeStation = state.activeStation === button.dataset.station ? null : button.dataset.station;
       resetAlertSelection();
       state.majorRiskFilter = false;
       renderAll();
@@ -453,12 +471,9 @@ function activeAlert() {
 }
 
 function currentAlertRows() {
-  const station = activeStation();
   if (state.activeRiskId === "construction" && !state.majorRiskFilter) {
-    const rows = realConstructionAlertRows();
-    return station ? rows.filter((row) => row.station === station.station) : rows;
+    return realConstructionAlertRows();
   }
-  if (station) return buildStationRows(station, state.activeRiskId);
   if (state.majorRiskFilter) return buildMajorControlRows(state.activeRiskId);
   return dashboardData.stationRiskRatios.flatMap((item) => buildStationRows(item, state.activeRiskId));
 }
@@ -581,16 +596,17 @@ function buildMajorControlRows(riskId) {
         region: "重庆/垫江/鼎发燃气",
         level: "高风险",
         frequency: { low: 0, medium: 0, high: stationInfo.count, critical: 0 },
-        cause: `${stationInfo.name}${risk.name}高风险累计${stationInfo.count}件，当前纳入高风险管控筛选，需按站点和风险类型集中核查。`,
-        impact: `该风险类型共触发${total}条高风险告警，若未及时处置，可能影响站点安全裕度、管段运行稳定和应急资源调度。`,
-        advice: `优先处理${stationInfo.name}相关告警，核查实时监测值、现场设备状态和历史处置记录，并将${total}条高风险纳入闭环工单。`,
+        cause: `${risk.name}高风险累计${stationInfo.count}件，当前纳入高风险管控筛选，需按设备与风险类型集中核查。`,
+        impact: `该风险类型共触发${total}条高风险告警，若未及时处置，可能影响设备安全裕度、管段运行稳定和应急资源调度。`,
+        advice: `优先核查相关实时监测值、设备状态和历史处置记录，并将${total}条高风险纳入闭环工单。`,
       };
 
       if (riskId === "construction") {
         return {
           ...common,
-          title: `${stationInfo.name} 周边施工高风险预警 ${sequence}`,
-          camera: `${stationInfo.name} ${String(sequence).padStart(2, "0")}#球机`,
+          title: `周边施工高风险预警 ${sequence}`,
+          camera: `${String(sequence).padStart(2, "0")}#球机`,
+          deviceName: `垫江县桂东路${String(sequence).padStart(2, "0")}#监控`,
           distance: sequence % 2 ? "8m红区" : "10m红区",
           beforeAfter: "前后30s视频",
           thumbnail: dashboardData.constructionVideos[sequence % dashboardData.constructionVideos.length]?.thumbnail || dashboardData.constructionVideos[0].thumbnail,
@@ -655,9 +671,9 @@ function buildStationRows(station, riskId) {
     region: "重庆/垫江/鼎发燃气",
     level,
     frequency,
-    cause: `${station.station}在${risk.name}维度占比为${segment.value}%，当前风险贡献高于站点日常均值，需结合实时监测数据复核。`,
-    impact: `若该站点${risk.name}持续升高，可能影响站内设备运行、周边管段安全裕度和后续处置资源调度。`,
-    advice: `建议调度中心优先核查${station.station}的${risk.name}监测记录，联动属地巡检并对连续异常点位生成处置工单。`,
+    cause: `当前设备在${risk.name}维度占比为${segment.value}%，风险贡献高于日常均值，需结合实时监测数据复核。`,
+    impact: `若${risk.name}持续升高，可能影响设备运行、周边管段安全裕度和后续处置资源调度。`,
+    advice: `建议调度中心优先核查该设备的${risk.name}监测记录，联动属地巡检并对连续异常点位生成处置工单。`,
   };
 
   if (riskId === "construction") {
@@ -665,9 +681,10 @@ function buildStationRows(station, riskId) {
       const isDemoVideo = station.station === "凉风垭储配站" && item === 0;
       return {
         ...common,
-        title: isDemoVideo ? "凉风垭储配站 周边施工低风险视频预警" : `${station.station} 周边施工视频预警 ${item + 1}`,
+        title: isDemoVideo ? "周边施工低风险视频预警" : `周边施工视频预警 ${item + 1}`,
         time: `2026-05-30 17:${String(42 - item * 3).padStart(2, "0")}:1${item}`,
-        camera: `${station.station} ${String(item + 1).padStart(2, "0")}#枪机`,
+        camera: `${String(item + 1).padStart(2, "0")}#枪机`,
+        deviceName: isDemoVideo ? "垫江县桂西路01#监控" : `垫江县桂东路${String(item + 1).padStart(2, "0")}#监控`,
         distance: isDemoVideo ? "62m低风险区" : item === 0 ? "10m红区" : item <= 2 ? "26m管控区" : "45m关注区",
         level: isDemoVideo ? "低风险" : common.level,
         frequency: isDemoVideo ? { low: count, medium: 0, high: 0, critical: 0 } : common.frequency,
@@ -743,6 +760,54 @@ function pressureClass(level) {
   }[level] || "pressure-normal";
 }
 
+function deviceId(row, riskId = state.activeRiskId) {
+  const prefix = {
+    construction: "DF-VI",
+    strain: "DF-SS",
+    cathodic: "DF-CP",
+    leak: "DF-GAS",
+    pressure: "DF-PT",
+  }[riskId] || "DF-EQ";
+  const source = row.code || row.station || row.title || "000";
+  const seed = Array.from(source).reduce((sum, char) => sum + char.charCodeAt(0), 0) % 1000;
+  return row.deviceId || row.code || `${prefix}-${String(seed).padStart(3, "0")}`;
+}
+
+function deviceName(row, riskId = state.activeRiskId) {
+  if (riskId === "construction") return row.deviceName || `垫江县桂东路${row.camera || "01#监控"}`;
+  const names = {
+    strain: "管道应力应变监测终端",
+    cathodic: "阴极保护智能采集终端",
+    leak: "物联网阀门井气体报警器",
+    pressure: "智能远程压力监测终端",
+  };
+  return row.deviceName || row.type || names[riskId] || "安全监测终端";
+}
+
+function areaText(row) {
+  return row.area || row.region || "重庆/垫江/鼎发燃气";
+}
+
+function sampleFrequency(row, index) {
+  return row.sampleFrequency || ["5Hz", "10Hz", "20Hz", "1Hz"][index % 4];
+}
+
+function temperatureValue(row, index) {
+  return row.temperature || `${(24.6 + (index % 5) * 0.8).toFixed(1)}℃`;
+}
+
+function currentValue(base, step, index) {
+  return (base + step * index).toFixed(1);
+}
+
+function alertRiskStatus(alert, risk = activeRisk()) {
+  return `${risk.name} · ${alert?.level || getLevel(risk.score).name + "风险"}`;
+}
+
+function analysisDeviceTitle(alert, riskId = state.activeRiskId) {
+  return `${deviceId(alert, riskId)} · ${deviceName(alert, riskId)}`;
+}
+
 function renderEmptyRealtime(message = "暂无高风险数据") {
   $("#realtimeContent").innerHTML = `
     <div class="empty-state">
@@ -774,21 +839,16 @@ function renderRealtimeAlerts() {
   }
 
   const valueLabels = {
-    leak: "LEL",
+    leak: "可燃气体 LEL",
     pressure: "压力 kPa",
   };
   panelLabel.textContent = valueLabels[state.activeRiskId] || "压力 kPa";
+  const valueHeader = state.activeRiskId === "leak" ? "可燃气体浓度（LEL）" : "压力（kpa）";
   const rows = currentAlertRows();
   if (!rows.length) {
     renderEmptyRealtime();
     return;
   }
-  const valueColumn = {
-    strain: "应变με",
-    leak: "气体浓度",
-    pressure: "压力kPa",
-  }[state.activeRiskId] || "监测值";
-  const leakExtraHeader = state.activeRiskId === "leak" ? "<th>压力</th>" : "";
   const { pageRows, start } = pagedAlertRows(rows);
   $("#realtimeContent").innerHTML = `
     <div class="risk-table-wrap">
@@ -797,12 +857,11 @@ function renderRealtimeAlerts() {
           <tr>
             <th class="seq-col">序号</th>
             <th>时间</th>
-            <th>站点名称</th>
+            <th>设备ID</th>
+            <th>设备名称</th>
             <th>区域</th>
-            <th>通讯编号</th>
-            <th>设备类型</th>
-            ${leakExtraHeader}
-            <th>${valueColumn}</th>
+            <th>温度</th>
+            <th>${valueHeader}</th>
           </tr>
         </thead>
         <tbody id="alertTableBody"></tbody>
@@ -814,17 +873,16 @@ function renderRealtimeAlerts() {
   $("#alertTableBody").innerHTML = pageRows
     .map(
       (row, index) => `
-        <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
-          <td class="seq-col">${start + index + 1}</td>
-          <td>${row.time}</td>
-          <td>${row.station}</td>
-          <td>${row.region}</td>
-          <td>${row.code}</td>
-          <td>${row.type}</td>
-          ${state.activeRiskId === "leak" ? `<td>${row.pressure || "-"}</td>` : ""}
-          <td><strong class="${pressureClass(row.level)}">${row.gas || row.pressure || row.strain}</strong></td>
-        </tr>
-      `,
+          <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
+            <td class="seq-col">${start + index + 1}</td>
+            <td>${row.time}</td>
+            <td>${deviceId(row, state.activeRiskId)}</td>
+            <td>${deviceName(row, state.activeRiskId)}</td>
+            <td>${areaText(row)}</td>
+            <td>${temperatureValue(row, start + index)}</td>
+            <td><strong class="${pressureClass(row.level)}">${state.activeRiskId === "leak" ? row.gas || "-" : row.pressure || "-"}</strong></td>
+          </tr>
+        `,
     )
     .join("");
 
@@ -852,10 +910,12 @@ function renderStrainTable() {
           <tr>
             <th class="seq-col">序号</th>
             <th>时间</th>
-            <th>站点名称</th>
+            <th>设备ID</th>
+            <th>设备名称</th>
             <th>区域</th>
-            <th>通讯编号</th>
-            <th>应变值</th>
+            <th>频率</th>
+            <th>温度</th>
+            <th>应变量</th>
           </tr>
         </thead>
         <tbody id="alertTableBody">
@@ -865,9 +925,11 @@ function renderStrainTable() {
                 <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
                   <td class="seq-col">${start + index + 1}</td>
                   <td>${row.time}</td>
-                  <td>${row.station}</td>
-                  <td>${row.region}</td>
-                  <td>${row.code}</td>
+                  <td>${deviceId(row, "strain")}</td>
+                  <td>${deviceName(row, "strain")}</td>
+                  <td>${areaText(row)}</td>
+                  <td>${sampleFrequency(row, start + index)}</td>
+                  <td>${temperatureValue(row, start + index)}</td>
                   <td><strong class="${pressureClass(row.level)}">${row.strain}</strong></td>
                 </tr>
               `,
@@ -903,12 +965,15 @@ function renderCathodicTable() {
           <tr>
             <th class="seq-col">序号</th>
             <th>时间</th>
-            <th>站点名称</th>
+            <th>设备ID</th>
+            <th>设备名称</th>
+            <th>区域</th>
+            <th>通电电位(V)</th>
             <th>断电电位(V)</th>
-            <th>直流电流密度</th>
-            <th>交流电流密度</th>
-            <th>交流电压</th>
-            <th>自然电位(V)</th>
+            <th>直流电流(mA)</th>
+            <th>直流电流密度(A/㎡)</th>
+            <th>交流电流(mA)</th>
+            <th>交流电流密度(A/㎡)</th>
             <th>阳极开路电位(V)</th>
             <th>阳极输出电流(mA)</th>
             <th>信号强度</th>
@@ -922,12 +987,15 @@ function renderCathodicTable() {
                 <tr class="${start + index === state.activeAlertIndex ? "active" : ""}" data-alert-index="${start + index}">
                   <td class="seq-col">${start + index + 1}</td>
                   <td>${row.time}</td>
-                  <td>${row.station}</td>
+                  <td>${deviceId(row, "cathodic")}</td>
+                  <td>${deviceName(row, "cathodic")}</td>
+                  <td>${areaText(row)}</td>
+                  <td>${row.onPotential || (Number(row.offPotential) - 0.22).toFixed(2)}</td>
                   <td><strong class="${pressureClass(row.level)}">${row.offPotential}</strong></td>
+                  <td>${row.dcCurrent || currentValue(72, 4.2, start + index)}</td>
                   <td>${row.dcDensity}</td>
+                  <td>${row.acCurrent || currentValue(16, 1.7, start + index)}</td>
                   <td>${row.acDensity}</td>
-                  <td>${row.acVoltage}</td>
-                  <td>${row.naturalPotential}</td>
                   <td>${row.anodeOpenPotential}</td>
                   <td>${row.anodeCurrent}</td>
                   <td>${row.signal}</td>
@@ -965,15 +1033,15 @@ function renderConstructionVideos() {
       ${pageRows
         .map(
           (item, index) => `
-            <button class="video-card ${start + index === state.activeAlertIndex ? "active" : ""}" type="button" data-alert-index="${start + index}" title="点击查看该风险前后总共30s的视频">
-              <span class="video-thumb ${item.videoUrl ? "has-video" : ""}" style="background:${item.thumbnail}">
+            <article class="video-card ${start + index === state.activeAlertIndex ? "active" : ""}" tabindex="0" role="button" data-alert-index="${start + index}" title="点击选中该风险事件">
+              <button class="video-thumb ${item.videoUrl ? "has-video" : ""}" type="button" data-alert-index="${start + index}" aria-label="查看视频大图" style="background:${item.thumbnail}">
                 ${item.videoUrl ? `<video src="${item.videoUrl}" muted preload="auto" playsinline></video>` : ""}
-                <i></i>
-              </span>
+                <span class="video-open"><i></i></span>
+              </button>
               <strong>${item.title}</strong>
               <small>${item.time} · ${item.camera}</small>
               <em>${item.distance} · ${item.level} · ${item.beforeAfter}</em>
-            </button>
+            </article>
           `,
         )
         .join("")}
@@ -982,8 +1050,24 @@ function renderConstructionVideos() {
   `;
 
   document.querySelectorAll(".video-card").forEach((card) => {
-    card.addEventListener("click", () => {
+    const selectCard = () => {
       state.activeAlertIndex = Number(card.dataset.alertIndex);
+      renderConstructionVideos();
+      renderSelectedAnalysis();
+    };
+
+    card.addEventListener("click", selectCard);
+    card.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      selectCard();
+    });
+  });
+
+  document.querySelectorAll(".video-open").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.activeAlertIndex = Number(button.dataset.alertIndex);
       const selectedItem = currentAlertRows()[state.activeAlertIndex];
       renderConstructionVideos();
       renderSelectedAnalysis();
@@ -1006,7 +1090,7 @@ function renderSelectedAnalysis() {
         </div>
         <section>
           <h3>研判结果</h3>
-          <p>当前风险类型下未发现高风险实时告警，建议保持常规监测，并持续关注站点风险管控与趋势变化。</p>
+          <p>当前风险类型下未发现高风险实时告警，建议保持常规监测，并持续关注风险管控与趋势变化。</p>
         </section>
       </article>
     `;
@@ -1015,12 +1099,11 @@ function renderSelectedAnalysis() {
   const frequencyText = `低风险 ${alert.frequency.low} 次，中风险 ${alert.frequency.medium} 次，高风险 ${alert.frequency.high} 次。`;
   const metricText = riskThresholdText(risk.id, alert);
 
-  $("#selectedAlertLabel").textContent = alert.station || alert.title;
+  $("#selectedAlertLabel").textContent = alertRiskStatus(alert, risk);
   $("#selectedAnalysis").innerHTML = `
     <article class="model-analysis">
       <div class="analysis-summary">
-        <strong>${alert.station || alert.title}</strong>
-        <span>${risk.name} · ${alert.level || getLevel(risk.score).name + "风险"}</span>
+        <strong>${analysisDeviceTitle(alert, risk.id)}</strong>
       </div>
       <section>
         <h3>历史告警频次</h3>
@@ -1044,29 +1127,50 @@ function renderSelectedAnalysis() {
 }
 
 function renderTrend() {
-  const canvas = $("#trendCanvas");
+  const enterprises = dashboardData.enterpriseMonitoring;
+  const totalGas = enterprises.reduce((sum, item) => sum + item.monthGas, 0);
+  const totalCollection = enterprises.reduce((sum, item) => sum + item.received, 0);
+
+  $("#enterpriseStatsContent").innerHTML = `
+    <div class="enterprise-stat-grid">
+      <article class="enterprise-stat-card">
+        <span>用气企业数</span>
+        <strong>55<small>家</small></strong>
+      </article>
+      <article class="enterprise-stat-card">
+        <span>本月总用气量</span>
+        <strong>${formatAmount(totalGas)}<small>m³</small></strong>
+      </article>
+      <article class="enterprise-stat-card">
+        <span>本月总回款</span>
+        <strong>${formatAmount(totalCollection)}<small>元</small></strong>
+      </article>
+    </div>
+  `;
+}
+
+function renderRiskTrend() {
+  const canvas = $("#riskTrendCanvas");
   const context = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
-  const stations = dashboardData.stationRiskRatios;
   const riskTypes = dashboardData.typeRatios;
   const rangeNames = { today: "今日", week: "近7天", month: "近30天" };
-  const rangeFactor = { today: 1, week: 4.8, month: 15.6 }[state.trendRange] || 1;
-  const left = 80;
+  const rangeFactor = { today: 1, week: 4.8, month: 15.6 }[state.riskTrendRange] || 1;
+  const left = 78;
   const right = 38;
-  const top = 58;
-  const bottom = 72;
+  const top = 60;
+  const bottom = 74;
   const chartWidth = width - left - right;
   const chartHeight = height - top - bottom;
-  const series = riskTypes.map((riskType) => ({
+  const trendItems = riskTypes.map((riskType) => ({
     ...riskType,
-    values: stations.map((station) => {
-      const segment = station.segments.find((item) => item.name === riskType.name);
-      return Math.max(1, Math.round(((segment?.value || 0) / 100) * station.total * rangeFactor));
-    }),
+    value: Math.max(1, Math.round(riskType.count * rangeFactor)),
   }));
-  const maxValue = Math.max(...series.flatMap((item) => item.values), 5);
+  const maxValue = Math.max(...trendItems.map((item) => item.value), 5);
   const yMax = Math.ceil(maxValue / 5) * 5;
+  const slotWidth = chartWidth / trendItems.length;
+  const barWidth = Math.min(76, slotWidth * 0.46);
 
   context.clearRect(0, 0, width, height);
   context.fillStyle = "#07111f";
@@ -1074,7 +1178,7 @@ function renderTrend() {
 
   context.strokeStyle = "rgba(148, 163, 184, .18)";
   context.lineWidth = 1;
-  context.font = "12px Arial";
+  context.font = "15px Arial";
   context.textAlign = "right";
   context.fillStyle = "#94a3b8";
   for (let i = 0; i <= 5; i += 1) {
@@ -1084,7 +1188,7 @@ function renderTrend() {
     context.moveTo(left, y);
     context.lineTo(width - right, y);
     context.stroke();
-    context.fillText(String(Math.round(value)), left - 12, y + 4);
+    context.fillText(String(Math.round(value)), left - 14, y + 5);
   }
 
   context.strokeStyle = "rgba(125, 211, 252, .32)";
@@ -1095,80 +1199,77 @@ function renderTrend() {
   context.stroke();
 
   context.fillStyle = "#94a3b8";
-  context.font = "16px Arial";
+  context.font = "20px Arial";
   context.textAlign = "left";
-  context.fillText(`${rangeNames[state.trendRange]}各站点风险次数趋势`, left, 26);
+  context.fillText(`${rangeNames[state.riskTrendRange]}风险次数趋势`, left, 30);
 
-  stations.forEach((station, colIndex) => {
-    const x = left + (chartWidth / (stations.length - 1)) * colIndex;
-    const shortName = station.station
-      .replace("垫江", "")
-      .replace("工业园区", "工业园")
-      .replace("配气站", "站")
-      .replace("澄溪", "");
-    context.fillStyle = "#cbd5e1";
-    context.font = "12px Arial";
-    context.textAlign = "center";
-    context.fillText(shortName, x, height - 32);
+  const points = trendItems.map((item, index) => {
+    const x = left + slotWidth * index + slotWidth / 2;
+    const y = top + chartHeight - (item.value / yMax) * chartHeight;
+    return { ...item, x, y };
   });
 
-  series.forEach((riskType) => {
-    const points = riskType.values.map((value, index) => ({
-      value,
-      x: left + (chartWidth / (stations.length - 1)) * index,
-      y: top + chartHeight - (value / yMax) * chartHeight,
-    }));
-
-    context.beginPath();
-    points.forEach((point, index) => {
-      if (index === 0) context.moveTo(point.x, point.y);
-      else context.lineTo(point.x, point.y);
-    });
-    context.strokeStyle = riskType.color;
-    context.lineWidth = 3;
-    context.shadowColor = riskType.color;
-    context.shadowBlur = 10;
-    context.stroke();
+  points.forEach((item) => {
+    const barHeight = top + chartHeight - item.y;
+    const gradient = context.createLinearGradient(0, item.y, 0, top + chartHeight);
+    gradient.addColorStop(0, item.color);
+    gradient.addColorStop(1, `${item.color}33`);
+    context.fillStyle = gradient;
+    context.shadowColor = item.color;
+    context.shadowBlur = 14;
+    context.fillRect(item.x - barWidth / 2, item.y, barWidth, barHeight);
     context.shadowBlur = 0;
 
-    points.forEach((point) => {
-      context.beginPath();
-      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
-      context.fillStyle = "#07111f";
-      context.fill();
-      context.lineWidth = 2;
-      context.strokeStyle = riskType.color;
-      context.stroke();
-    });
+    context.fillStyle = "#f8fafc";
+    context.font = "700 22px Arial";
+    context.textAlign = "center";
+    context.fillText(String(item.value), item.x, item.y - 10);
+
+    context.fillStyle = "#cbd5e1";
+    context.font = "700 17px Arial";
+    context.fillText(item.name, item.x, height - 42);
   });
 
-  let legendX = left + 260;
-  riskTypes.forEach((riskType) => {
-    context.fillStyle = riskType.color;
-    context.fillRect(legendX, 16, 18, 4);
-    context.fillStyle = "#cbd5e1";
-    context.font = "12px Arial";
-    context.textAlign = "left";
-    context.fillText(riskType.name, legendX + 24, 20);
-    legendX += 116;
+  context.beginPath();
+  points.forEach((point, index) => {
+    if (index === 0) context.moveTo(point.x, point.y);
+    else context.lineTo(point.x, point.y);
+  });
+  context.strokeStyle = "rgba(226, 232, 240, .86)";
+  context.lineWidth = 2;
+  context.shadowColor = "rgba(34, 211, 238, .55)";
+  context.shadowBlur = 10;
+  context.stroke();
+  context.shadowBlur = 0;
+
+  points.forEach((point) => {
+    context.beginPath();
+    context.arc(point.x, point.y, 5, 0, Math.PI * 2);
+    context.fillStyle = "#07111f";
+    context.fill();
+    context.lineWidth = 2;
+    context.strokeStyle = point.color;
+    context.stroke();
   });
 
   context.textAlign = "left";
   context.fillStyle = "#93a4b8";
-  context.font = "13px Arial";
-  context.fillText("横坐标：站点  /  纵坐标：告警次数  /  折线：五类风险走势", left, height - 8);
-  $("#trendLabel").textContent = rangeNames[state.trendRange];
+  context.font = "15px Arial";
+  context.fillText("横坐标：五大风险  /  纵坐标：告警次数", left, height - 12);
+  $("#riskTrendLabel").textContent = rangeNames[state.riskTrendRange];
 }
 
 function renderAll() {
-  renderHeroStats();
+  renderUpdatedAt();
   renderRiskLevelLegend();
-  renderRatioPanels();
+  renderEnterpriseRiskPanel();
+  renderElderlyMonitorPanel();
+  renderMajorRiskPanel();
   renderRiskList();
-  renderStationControl();
   renderRealtimeAlerts();
   renderSelectedAnalysis();
   renderTrend();
+  renderRiskTrend();
 }
 
 renderAll();
@@ -1182,7 +1283,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeVideoModal();
 });
 
-$("#trendRange").addEventListener("change", (event) => {
-  state.trendRange = event.target.value;
-  renderTrend();
+$("#riskTrendRange").addEventListener("change", (event) => {
+  state.riskTrendRange = event.target.value;
+  renderRiskTrend();
 });
