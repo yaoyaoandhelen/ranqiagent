@@ -177,8 +177,9 @@ button {
 
 .pipeline-safety-section .panel-head h2,
 .pipeline-safety-section .ratio-head h2 {
-  font-size: 22px;
-  line-height: 1.25;
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 800;
 }
 
 .pipeline-safety-section .ratio-head p {

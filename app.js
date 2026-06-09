@@ -116,6 +116,28 @@ function realConstructionAlertRows() {
       thumbnail: "",
       videoUrl: "./assets/videos/third-party-construction-low-risk-2.mp4",
     },
+    {
+      title: "周边施工积水风险视频预警",
+      time: "2026-06-09 10:52:00",
+      station: "垫江县桂西路施工点",
+      region: "重庆/垫江/鼎发燃气",
+      camera: "03#监控",
+      deviceName: "垫江县桂西路03#监控",
+      distance: "积水覆盖施工低洼区",
+      level: "中风险",
+      beforeAfter: "前后30s视频",
+      frequency: { low: 0, medium: 1, high: 0, critical: 0 },
+      cause: "视频识别到第三方施工区域存在明显积水，低洼积水可能与近期降雨、排水不畅或施工围挡阻水有关，需核实是否靠近燃气管道、阀井或管沟。",
+      impact: "积水可能导致管沟长期浸泡、防腐层受潮失效、阀井设备受潮锈蚀，并遮挡地面警示标识和施工边界，降低巡检可视性与应急处置效率。",
+      advice: "立即通知属地巡检人员核查积水范围、深度及与管线位置关系，督促施工方排水并恢复警示隔离；若积水靠近阀井或管道红线，需联动抢维修人员复核防腐、阀井密封和周边沉降情况。",
+      metrics: [
+        { label: "环境状态", value: "施工区积水", state: "中风险关注" },
+        { label: "影响对象", value: "管沟/阀井", state: "需现场复核" },
+        { label: "处置要求", value: "排水+巡检", state: "及时闭环" },
+      ],
+      thumbnail: "",
+      videoUrl: "./assets/videos/construction-waterlogging-risk.mp4",
+    },
   ];
 }
 
@@ -1135,7 +1157,7 @@ function renderTrend() {
     <div class="enterprise-stat-grid">
       <article class="enterprise-stat-card">
         <span>用气企业数</span>
-        <strong>55<small>家</small></strong>
+        <strong>47<small>家</small></strong>
       </article>
       <article class="enterprise-stat-card">
         <span>本月总用气量</span>

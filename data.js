@@ -12,16 +12,16 @@ const dashboardData = {
     { level: "高风险", count: 16, color: "#fb923c" },
   ],
   typeRatios: [
-    { name: "第三方施工", count: 18, color: "#fb5a70" },
-    { name: "应力应变", count: 14, color: "#fb923c" },
-    { name: "阴极保护", count: 11, color: "#facc15" },
-    { name: "泄漏检测", count: 8, color: "#8b7cf6" },
-    { name: "压力检测", count: 17, color: "#22d3ee" },
+    { name: "第三方施工", count: 19, color: "#10b981" },
+    { name: "应力应变", count: 14, color: "#a78bfa" },
+    { name: "阴极保护", count: 11, color: "#94a3b8" },
+    { name: "泄漏检测", count: 8, color: "#14b8a6" },
+    { name: "压力检测", count: 17, color: "#c084fc" },
   ],
   enterpriseMonitoring: [
     {
-      company: "垫江华能制造",
-      shortName: "华能制造",
+      company: "重庆中昆铝业有限公司",
+      shortName: "中昆铝业",
       todayGas: 1280,
       weekGas: 8920,
       monthGas: 39200,
@@ -42,8 +42,8 @@ const dashboardData = {
       level: "蓝色",
     },
     {
-      company: "垫江鼎发食品",
-      shortName: "鼎发食品",
+      company: "重庆市威电康科技有限公司",
+      shortName: "威电康科技",
       todayGas: 520,
       weekGas: 3820,
       monthGas: 22400,
@@ -64,8 +64,8 @@ const dashboardData = {
       level: "黄色",
     },
     {
-      company: "垫江桂溪药业",
-      shortName: "桂溪药业",
+      company: "重庆聚欣源鞋业有限公司",
+      shortName: "聚欣源鞋业",
       todayGas: 960,
       weekGas: 6280,
       monthGas: 41200,
@@ -86,8 +86,8 @@ const dashboardData = {
       level: "黄色",
     },
     {
-      company: "垫江澄溪建材",
-      shortName: "澄溪建材",
+      company: "重庆镜辰美科技有限公司",
+      shortName: "镜辰美科技",
       todayGas: 420,
       weekGas: 3180,
       monthGas: 23200,
@@ -108,8 +108,8 @@ const dashboardData = {
       level: "橙色",
     },
     {
-      company: "垫江高安电子",
-      shortName: "高安电子",
+      company: "重庆市垫江县梦豪铝业有限公司",
+      shortName: "梦豪铝业",
       todayGas: 0,
       weekGas: 46,
       monthGas: 17400,
@@ -130,8 +130,8 @@ const dashboardData = {
       level: "红色",
     },
     {
-      company: "垫江长龙机械",
-      shortName: "长龙机械",
+      company: "重庆聚欣源鞋业有限公司",
+      shortName: "聚欣源鞋业",
       todayGas: 1180,
       weekGas: 8260,
       monthGas: 35100,
@@ -152,8 +152,8 @@ const dashboardData = {
       level: "蓝色",
     },
     {
-      company: "垫江沙坪冷链",
-      shortName: "沙坪冷链",
+      company: "贝丝特再生资源（重庆）有限公司",
+      shortName: "贝丝特再生",
       todayGas: 610,
       weekGas: 4380,
       monthGas: 28600,
@@ -242,7 +242,7 @@ const dashboardData = {
   ],
   elderlyMonitoring: [
     {
-      name: "张某",
+      name: "董延菊",
       age: 82,
       address: "桂溪街道南阳社区 3栋 2单元 601",
       riskName: "长期未用气",
@@ -254,7 +254,7 @@ const dashboardData = {
       abnormalDays: 3,
     },
     {
-      name: "赵某",
+      name: "彭彦钦",
       age: 79,
       address: "桂阳街道月阳小区 5栋 1单元 402",
       riskName: "长期低程度用气",
@@ -266,7 +266,7 @@ const dashboardData = {
       abnormalDays: 3,
     },
     {
-      name: "李某",
+      name: "周培文",
       age: 76,
       address: "澄溪镇滨河路 18号附2号",
       riskName: "用气骤降",
@@ -278,7 +278,7 @@ const dashboardData = {
       abnormalDays: 2,
     },
     {
-      name: "王某",
+      name: "冷安容",
       age: 84,
       address: "高安镇桥西社区 7组 21号",
       riskName: "用气异常升高",
@@ -290,7 +290,7 @@ const dashboardData = {
       abnormalDays: 1,
     },
     {
-      name: "陈某",
+      name: "张太友",
       age: 88,
       address: "长龙镇迎春社区 2栋 3单元 301",
       riskName: "长期未用气",
