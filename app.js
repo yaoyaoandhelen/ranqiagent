@@ -1086,7 +1086,7 @@ function renderConstructionVideos() {
     });
   });
 
-  document.querySelectorAll(".video-open").forEach((button) => {
+  document.querySelectorAll(".video-thumb").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       state.activeAlertIndex = Number(button.dataset.alertIndex);
